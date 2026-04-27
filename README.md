@@ -51,7 +51,7 @@ AST parsing avoids false positives from comments, migration files, and unrelated
 
 ## Limitations
 
-String-based ORM calls are not detected. Patterns like `.values('email')`, `.defer('email')`, or `Q(email=...)` use the column name as a string argument, which is structurally different from a direct attribute access. colref will not report these as references.
+v0.1 detects attribute-access references only (e.g. `user.email`). String-based ORM calls like `.values('email')`, `.defer('email')`, or `Q(email=...)` pass the column name as a string argument and are not yet covered. Support for these patterns will be added in a future version, as it requires per-ORM knowledge of which methods accept column names as strings.
 
 If colref reports no references, treat it as "none found in attribute-access form" — not as a guarantee the column is unused.
 
