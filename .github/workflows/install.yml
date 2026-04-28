@@ -25,4 +25,4 @@ jobs:
           cache: true
 
       - name: Verify go install
-        run: go install github.com/shinagawa-web/colref@latest
+        run: go install ./cmd/colref
