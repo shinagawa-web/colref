@@ -138,6 +138,20 @@ func TestScan_DotDirAsRoot(t *testing.T) {
 	}
 }
 
+func TestScan_DuplicateOnSameLine(t *testing.T) {
+	dir := t.TempDir()
+	// self.email appears twice on the same line (lhs and rhs of assignment).
+	writeFile(t, dir, "models.py", `self.email = normalize(self.email)`)
+
+	refs, _, err := Scan(dir, "email")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(refs) != 1 {
+		t.Fatalf("want 1 ref (deduped), got %d: %v", len(refs), refs)
+	}
+}
+
 func TestScan_MultipleFiles(t *testing.T) {
 	dir := t.TempDir()
 	writeFile(t, dir, "a.py", `x = user.email`)

@@ -15,8 +15,10 @@ func main() {
 }
 
 var rootCmd = &cobra.Command{
-	Use:   "colref",
-	Short: "Check whether a DB column is still referenced before you delete it",
+	Use:           "colref",
+	Short:         "Check whether a DB column is still referenced before you delete it",
+	SilenceUsage:  true,
+	SilenceErrors: true,
 }
 
 var (
@@ -34,8 +36,7 @@ var checkCmd = &cobra.Command{
 		if len(args) == 1 {
 			dir = args[0]
 		}
-		fmt.Printf("check: model=%s field=%s dir=%s\n", flagModel, flagField, dir)
-		return nil
+		return runCheck(dir, flagModel, flagField, flagModelsFile)
 	},
 }
 

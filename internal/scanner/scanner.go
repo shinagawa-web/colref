@@ -17,7 +17,9 @@ type Reference struct {
 	Text string
 }
 
-var skipDirs = map[string]bool{
+// SkipDirs is the set of directory names that are never scanned.
+// Exported so CLI code that walks for models.py can apply the same rules.
+var SkipDirs = map[string]bool{
 	"__pycache__":  true,
 	"venv":         true,
 	"migrations":   true,
@@ -37,7 +39,7 @@ func Scan(dir, fieldName string) ([]Reference, int, error) {
 		}
 		if d.IsDir() {
 			name := d.Name()
-			if path != dir && (strings.HasPrefix(name, ".") || skipDirs[name]) {
+			if path != dir && (strings.HasPrefix(name, ".") || SkipDirs[name]) {
 				return filepath.SkipDir
 			}
 			return nil
@@ -63,11 +65,26 @@ func Scan(dir, fieldName string) ([]Reference, int, error) {
 		if err != nil {
 			rel = filepath.Clean(path)
 		}
-		walkNode(tree.RootNode(), src, fieldName, rel, &refs)
+		var fileRefs []Reference
+		walkNode(tree.RootNode(), src, fieldName, rel, &fileRefs)
+		refs = append(refs, dedupeByLine(fileRefs)...)
 		return nil
 	})
 
 	return refs, filesScanned, err
+}
+
+// dedupeByLine keeps the first Reference seen for each line number.
+func dedupeByLine(refs []Reference) []Reference {
+	seen := map[int]bool{}
+	out := refs[:0:0]
+	for _, r := range refs {
+		if !seen[r.Line] {
+			seen[r.Line] = true
+			out = append(out, r)
+		}
+	}
+	return out
 }
 
 func walkNode(node *sitter.Node, src []byte, fieldName, file string, refs *[]Reference) {
