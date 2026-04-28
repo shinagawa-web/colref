@@ -2,9 +2,6 @@ version: 2
 
 project_name: colref
 
-partial:
-  by: goos
-
 builds:
   - main: ./cmd/colref
     binary: colref
@@ -33,6 +30,3 @@ archives:
 
 checksum:
   name_template: checksums.txt
-
-release:
-  disable: true
