@@ -11,8 +11,10 @@ colref scans your codebase with an AST parser, skips comments and string literal
 ## Usage
 
 ```
-colref check --model User --field email
+colref check --model User --field email [path]
 ```
+
+`path` is the directory to scan (default: current directory).
 
 Output:
 
@@ -36,6 +38,43 @@ References found for User.email
   accounts/views.py:88         obj.email
   notifications/tasks.py:12    instance.email
 ```
+
+### Flags
+
+| Flag | Description |
+|---|---|
+| `--model` | Model name to look up (required) |
+| `--field` | Field name to search for (required) |
+| `--models-file` | Path to a specific `models.py` (see below) |
+
+### models.py auto-detection
+
+colref locates `models.py` automatically by walking the target directory. All `models.py` files found are parsed and merged.
+
+If the same model name appears in more than one `models.py`, colref exits with an error and lists the conflicting files:
+
+```
+Error: model "User" found in multiple files:
+  accounts/models.py
+  legacy/models.py
+Use --models-file to specify which one.
+```
+
+Use `--models-file` to point to a specific file and resolve the ambiguity:
+
+```
+colref check --model User --field email --models-file accounts/models.py
+```
+
+### Skipped directories
+
+The following directories are never scanned:
+
+- `.git`, and any directory whose name starts with `.`
+- `__pycache__`
+- `venv`, `.venv`
+- `migrations`
+- `node_modules`
 
 ## Installation
 
