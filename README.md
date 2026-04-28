@@ -49,9 +49,7 @@ References found for User.email
 
 ### models.py auto-detection
 
-> **Planned — implemented in the CLI wiring phase.**
-
-colref will locate `models.py` automatically by walking the target directory. All `models.py` files found are parsed and merged.
+colref locates `models.py` automatically by walking the target directory. All `models.py` files found are parsed and merged.
 
 If the same model name appears in more than one `models.py`, colref exits with an error and lists the conflicting files:
 
