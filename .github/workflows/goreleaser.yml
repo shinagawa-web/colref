@@ -1,4 +1,4 @@
-name: goreleaser
+name: release
 
 on:
   push:
@@ -12,7 +12,22 @@ jobs:
   build:
     strategy:
       matrix:
-        os: [ubuntu-latest, macos-latest]
+        include:
+          - os: ubuntu-latest
+            goos: linux
+            goarch: amd64
+          - os: ubuntu-latest
+            goos: linux
+            goarch: arm64
+            cc: aarch64-linux-gnu-gcc
+            apt: gcc-aarch64-linux-gnu
+          - os: macos-latest
+            goos: darwin
+            goarch: amd64
+          - os: macos-latest
+            goos: darwin
+            goarch: arm64
+
     runs-on: ${{ matrix.os }}
 
     steps:
@@ -25,46 +40,46 @@ jobs:
           go-version-file: go.mod
           cache: true
 
-      - name: Install arm64 cross-compiler
-        if: matrix.os == 'ubuntu-latest'
-        run: sudo apt-get install -y gcc-aarch64-linux-gnu
+      - name: Install cross-compiler
+        if: matrix.apt != ''
+        run: sudo apt-get install -y ${{ matrix.apt }}
 
-      - uses: goreleaser/goreleaser-action@v6
-        with:
-          args: release --clean
+      - name: Build and archive
         env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GOOS: ${{ matrix.goos }}
+          GOARCH: ${{ matrix.goarch }}
+          CGO_ENABLED: "1"
+          CC: ${{ matrix.cc }}
+        run: |
+          VERSION="${GITHUB_REF_NAME#v}"
+          go build -o colref ./cmd/colref/
+          tar czf "colref_${VERSION}_${{ matrix.goos }}_${{ matrix.goarch }}.tar.gz" \
+            colref LICENSE README.md
 
       - uses: actions/upload-artifact@v4
         with:
-          name: dist-${{ matrix.os }}
-          path: dist/
+          name: colref-${{ matrix.goos }}-${{ matrix.goarch }}
+          path: "*.tar.gz"
 
   release:
     needs: build
     runs-on: ubuntu-latest
 
     steps:
-      - uses: actions/checkout@v4
-        with:
-          fetch-depth: 0
-
       - uses: actions/download-artifact@v4
         with:
-          path: dist/
+          path: artifacts/
           merge-multiple: true
 
-      - name: Combine checksums
-        run: |
-          cd dist
-          cat checksums.txt 2>/dev/null | sort -u > combined_checksums.txt || true
+      - name: Create checksums
+        run: sha256sum artifacts/*.tar.gz > artifacts/checksums.txt
 
       - name: Create GitHub Release
         run: |
-          gh release create "${{ github.ref_name }}" \
-            dist/*.tar.gz \
-            dist/combined_checksums.txt \
-            --title "${{ github.ref_name }}" \
+          gh release create "$GITHUB_REF_NAME" \
+            artifacts/*.tar.gz \
+            artifacts/checksums.txt \
+            --title "$GITHUB_REF_NAME" \
             --generate-notes
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
