@@ -17,7 +17,9 @@ type Reference struct {
 	Text string
 }
 
-var skipDirs = map[string]bool{
+// SkipDirs is the set of directory names that are never scanned.
+// Exported so CLI code that walks for models.py can apply the same rules.
+var SkipDirs = map[string]bool{
 	"__pycache__":  true,
 	"venv":         true,
 	"migrations":   true,
@@ -37,7 +39,7 @@ func Scan(dir, fieldName string) ([]Reference, int, error) {
 		}
 		if d.IsDir() {
 			name := d.Name()
-			if path != dir && (strings.HasPrefix(name, ".") || skipDirs[name]) {
+			if path != dir && (strings.HasPrefix(name, ".") || SkipDirs[name]) {
 				return filepath.SkipDir
 			}
 			return nil

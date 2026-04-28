@@ -11,12 +11,6 @@ import (
 	"github.com/shinagawa-web/colref/internal/scanner"
 )
 
-var skipDirsCheck = map[string]bool{
-	"__pycache__":  true,
-	"venv":         true,
-	"migrations":   true,
-	"node_modules": true,
-}
 
 func runCheck(dir, modelName, fieldName, modelsFile string) error {
 	// Determine which models.py files to parse.
@@ -67,7 +61,11 @@ func runCheck(dir, modelName, fieldName, modelsFile string) error {
 	if files := modelToFiles[modelName]; len(files) > 1 {
 		lines := []string{fmt.Sprintf("model %q found in multiple files:", modelName)}
 		for _, f := range files {
-			lines = append(lines, "  "+f)
+			rel, err := filepath.Rel(dir, f)
+			if err != nil {
+				rel = filepath.Clean(f)
+			}
+			lines = append(lines, "  "+rel)
 		}
 		lines = append(lines, "Use --models-file to specify which one.")
 		return fmt.Errorf("%s", strings.Join(lines, "\n"))
@@ -135,7 +133,7 @@ func findModelsFiles(dir string) ([]string, error) {
 		}
 		if d.IsDir() {
 			name := d.Name()
-			if path != dir && (strings.HasPrefix(name, ".") || skipDirsCheck[name]) {
+			if path != dir && (strings.HasPrefix(name, ".") || scanner.SkipDirs[name]) {
 				return filepath.SkipDir
 			}
 			return nil

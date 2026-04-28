@@ -54,7 +54,7 @@ colref locates `models.py` automatically by walking the target directory. All `m
 If the same model name appears in more than one `models.py`, colref exits with an error and lists the conflicting files:
 
 ```
-Error: model "User" found in multiple files:
+model "User" found in multiple files:
   accounts/models.py
   legacy/models.py
 Use --models-file to specify which one.
