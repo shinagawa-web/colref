@@ -10,6 +10,7 @@ on:
 
 permissions:
   contents: read
+  pull-requests: write
 
 jobs:
   test:
@@ -30,4 +31,3 @@ jobs:
         uses: codecov/codecov-action@v4
         with:
           files: coverage.out
-          token: ${{ secrets.CODECOV_TOKEN }}
