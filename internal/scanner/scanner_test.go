@@ -124,7 +124,7 @@ func TestScan_DotDirAsRoot(t *testing.T) {
 	if err := os.Chdir(dir); err != nil {
 		t.Fatal(err)
 	}
-	defer os.Chdir(orig)
+	t.Cleanup(func() { _ = os.Chdir(orig) })
 
 	refs, count, err := Scan(".", "email")
 	if err != nil {
