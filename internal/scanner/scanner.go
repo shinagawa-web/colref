@@ -65,11 +65,26 @@ func Scan(dir, fieldName string) ([]Reference, int, error) {
 		if err != nil {
 			rel = filepath.Clean(path)
 		}
-		walkNode(tree.RootNode(), src, fieldName, rel, &refs)
+		var fileRefs []Reference
+		walkNode(tree.RootNode(), src, fieldName, rel, &fileRefs)
+		refs = append(refs, dedupeByLine(fileRefs)...)
 		return nil
 	})
 
 	return refs, filesScanned, err
+}
+
+// dedupeByLine keeps the first Reference seen for each line number.
+func dedupeByLine(refs []Reference) []Reference {
+	seen := map[int]bool{}
+	out := refs[:0:0]
+	for _, r := range refs {
+		if !seen[r.Line] {
+			seen[r.Line] = true
+			out = append(out, r)
+		}
+	}
+	return out
 }
 
 func walkNode(node *sitter.Node, src []byte, fieldName, file string, refs *[]Reference) {
