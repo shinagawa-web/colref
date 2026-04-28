@@ -12,11 +12,7 @@ jobs:
   build:
     strategy:
       matrix:
-        include:
-          - os: ubuntu-latest
-            goos: linux
-          - os: macos-latest
-            goos: darwin
+        os: [ubuntu-latest, macos-latest]
     runs-on: ${{ matrix.os }}
 
     steps:
@@ -38,11 +34,10 @@ jobs:
           args: release --split --clean
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          GOOS: ${{ matrix.goos }}
 
       - uses: actions/upload-artifact@v4
         with:
-          name: dist-${{ matrix.goos }}
+          name: dist-${{ matrix.os }}
           path: dist/
 
   merge:
