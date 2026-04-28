@@ -31,7 +31,7 @@ jobs:
 
       - uses: goreleaser/goreleaser-action@v6
         with:
-          args: release --split --clean
+          args: release --clean
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
@@ -40,7 +40,7 @@ jobs:
           name: dist-${{ matrix.os }}
           path: dist/
 
-  merge:
+  release:
     needs: build
     runs-on: ubuntu-latest
 
@@ -49,18 +49,22 @@ jobs:
         with:
           fetch-depth: 0
 
-      - uses: actions/setup-go@v5
-        with:
-          go-version-file: go.mod
-          cache: true
-
       - uses: actions/download-artifact@v4
         with:
           path: dist/
           merge-multiple: true
 
-      - uses: goreleaser/goreleaser-action@v6
-        with:
-          args: continue --merge
+      - name: Combine checksums
+        run: |
+          cd dist
+          cat checksums.txt 2>/dev/null | sort -u > combined_checksums.txt || true
+
+      - name: Create GitHub Release
+        run: |
+          gh release create "${{ github.ref_name }}" \
+            dist/*.tar.gz \
+            dist/combined_checksums.txt \
+            --title "${{ github.ref_name }}" \
+            --generate-notes
         env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
