@@ -29,6 +29,10 @@ jobs:
           go-version-file: go.mod
           cache: true
 
+      - name: Install arm64 cross-compiler
+        if: matrix.os == 'ubuntu-latest'
+        run: sudo apt-get install -y gcc-aarch64-linux-gnu
+
       - uses: goreleaser/goreleaser-action@v6
         with:
           args: release --split --clean
