@@ -37,7 +37,7 @@ func Scan(dir, fieldName string) ([]Reference, int, error) {
 		}
 		if d.IsDir() {
 			name := d.Name()
-			if strings.HasPrefix(name, ".") || skipDirs[name] {
+			if path != dir && (strings.HasPrefix(name, ".") || skipDirs[name]) {
 				return filepath.SkipDir
 			}
 			return nil
@@ -59,7 +59,10 @@ func Scan(dir, fieldName string) ([]Reference, int, error) {
 			return err
 		}
 
-		rel, _ := filepath.Rel(dir, path)
+		rel, err := filepath.Rel(dir, path)
+		if err != nil {
+			rel = filepath.Clean(path)
+		}
 		walkNode(tree.RootNode(), src, fieldName, rel, &refs)
 		return nil
 	})

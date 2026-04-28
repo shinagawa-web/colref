@@ -113,6 +113,31 @@ func TestScan_SkipMigrationsDir(t *testing.T) {
 	}
 }
 
+func TestScan_DotDirAsRoot(t *testing.T) {
+	dir := t.TempDir()
+	writeFile(t, dir, "views.py", `x = user.email`)
+
+	orig, err := os.Getwd()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Chdir(dir); err != nil {
+		t.Fatal(err)
+	}
+	defer os.Chdir(orig)
+
+	refs, count, err := Scan(".", "email")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if count != 1 {
+		t.Fatalf("want 1 file scanned when dir is \".\", got %d", count)
+	}
+	if len(refs) != 1 {
+		t.Fatalf("want 1 ref, got %d", len(refs))
+	}
+}
+
 func TestScan_MultipleFiles(t *testing.T) {
 	dir := t.TempDir()
 	writeFile(t, dir, "a.py", `x = user.email`)
