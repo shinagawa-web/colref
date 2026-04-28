@@ -1,0 +1,28 @@
+name: install
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - "**/*.go"
+      - go.mod
+      - go.sum
+
+permissions:
+  contents: read
+
+jobs:
+  install:
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+          cache: true
+
+      - name: Verify go install
+        run: go install ./cmd/colref
