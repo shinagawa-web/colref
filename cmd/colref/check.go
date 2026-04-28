@@ -11,7 +11,6 @@ import (
 	"github.com/shinagawa-web/colref/internal/scanner"
 )
 
-
 func runCheck(dir, modelName, fieldName, modelsFile string) error {
 	// Determine which models.py files to parse.
 	var modelsFiles []string
