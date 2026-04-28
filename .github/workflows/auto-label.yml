@@ -95,7 +95,7 @@ jobs:
     needs: label
 
     steps:
-      - uses: agilepathway/label-checker@v1
+      - uses: agilepathway/label-checker@v1.6.65
         with:
           one_of: enhancement,bug,documentation,chore,refactor,dependencies,ci,breaking-change
           repo_token: ${{ secrets.GITHUB_TOKEN }}
