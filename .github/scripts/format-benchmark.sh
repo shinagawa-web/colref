@@ -18,60 +18,55 @@ if [[ ! -s "$INPUT_FILE" ]]; then
 fi
 
 awk '
-  # Always print environment header lines.
   /^goos:|^goarch:|^cpu:/ { print; next }
-
-  # Print all pkg: lines.
   /^pkg:/ { print; next }
-
-  # Track current metric from benchstat table headers.
   /│[[:space:]]*sec\/op[[:space:]]*│/    { current_metric = "time";   next }
   /│[[:space:]]*B\/op[[:space:]]*│/      { current_metric = "memory"; next }
   /│[[:space:]]*allocs\/op[[:space:]]*│/ { current_metric = "allocs"; next }
-
-  # Skip table separator/header rows (leading whitespace or │) and blank/footnote lines.
   /^[[:space:]]/ { next }
   /│/            { next }
   /^$/           { next }
   /^[^A-Za-z]/   { next }
-
-  # Process benchmark result lines and geomean lines.
-  # Both start with an ASCII letter (e.g. "ParseModels-4", "Scan-4", "geomean").
   {
-    # Strip uncertainty markers (± ∞ ¹) and statistical annotations ((p=... n=...) ²).
-    gsub(/±[[:space:]]*∞[[:space:]]*[¹²³⁴⁵⁶⁷⁸⁹⁰]*/, "")
+    # Strip uncertainty markers: "± ∞ ¹" (n=1) and "± 5%" (n≥6).
+    gsub(/±[[:space:]]*[0-9.∞]+%?[[:space:]]*[¹²³⁴⁵⁶⁷⁸⁹⁰]*/, "")
+    # Strip statistical annotations "(p=... n=...) ²".
     gsub(/\([^)]*\)[[:space:]]*[¹²³⁴⁵⁶⁷⁸⁹⁰]*/, "")
 
-    # Require at least name, old value, new value, and delta.
     if (NF < 4) next
 
-    name    = $1
-    old_val = $2
-    new_val = $3
-    delta   = $NF
+    name  = $1
+    delta = $NF
 
-    # Strip GOMAXPROCS suffix (-N) from individual benchmark names.
-    if (name != "geomean") sub(/-[0-9]+$/, "", name)
+    # When benchstat cannot determine significance it outputs "~".
+    # Compute the percentage ourselves from the old and new values so
+    # the comment always shows a number instead of "~".
+    if (delta == "~") {
+      old_n = $2; gsub(/[^0-9.]/, "", old_n); old_n += 0
+      new_n = $3; gsub(/[^0-9.]/, "", new_n); new_n += 0
+      if (old_n > 0) {
+        pct   = (new_n - old_n) / old_n * 100
+        delta = (pct >= 0) ? sprintf("+%.2f%%", pct) : sprintf("%.2f%%", pct)
+        sub(/[[:space:]]*~[[:space:]]*$/, "  " delta, $0)
+      }
+    }
 
-    # Determine status symbol from delta.
     status = ""
     if (delta ~ /^\+[0-9.]+%$/) {
-      pct = delta
-      sub(/^\+/, "", pct); sub(/%$/, "", pct); pct = pct + 0
+      pct = delta; sub(/^\+/, "", pct); sub(/%$/, "", pct); pct += 0
       if      (pct >= 50) { status = " ❌" }
       else if (pct >= 10) { status = " ⚠️" }
       else                { status = " ✅" }
-    } else if (delta ~ /^-[0-9.]+%$/) {
-      status = " ✅"
-    } else if (delta == "~") {
-      status = " ✅"
-    }
+    } else if (delta ~ /^-[0-9.]+%$/) { status = " ✅" }
+
+    # Strip GOMAXPROCS suffix (-N) from individual benchmark names.
+    if (name != "geomean") sub(/-[0-9]+[[:space:]]/, " ", $0)
 
     metric_label = ""
     if      (current_metric == "time")   { metric_label = " [time/op]" }
     else if (current_metric == "memory") { metric_label = " [memory/op]" }
     else if (current_metric == "allocs") { metric_label = " [allocs/op]" }
 
-    printf "%-20s  %10s  %10s  %8s%s%s\n", name, old_val, new_val, delta, status, metric_label
+    print $0 status metric_label
   }
 ' "$INPUT_FILE" > "$OUTPUT_FILE"
