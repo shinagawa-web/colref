@@ -126,12 +126,15 @@ func TestE2E_Rails(t *testing.T) {
 	})
 
 	t.Run("NoSchemaFile", func(t *testing.T) {
-		dir := t.TempDir()
-		out, err := run(t, "check", "--orm", "rails", "--model", "User", "--field", "email", dir)
-		if err == nil {
-			t.Fatal("expected non-zero exit for missing schema.rb")
+		// schema.rb absent: should warn and scan without validation.
+		fixture := "fixtures/rails-no-schema"
+		out, err := run(t, "check", "--orm", "rails", "--model", "User", "--field", "email", fixture)
+		if err != nil {
+			t.Fatalf("no-schema path should not error: %v\noutput:\n%s", err, out)
 		}
 		assertContains(t, out, "schema.rb")
+		assertContains(t, out, "References found for User.email")
+		assertContains(t, out, "app/user.rb")
 	})
 }
 

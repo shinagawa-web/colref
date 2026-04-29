@@ -1,6 +1,7 @@
 package main
 
 import (
+	"errors"
 	"fmt"
 	"io/fs"
 	"os"
@@ -43,6 +44,10 @@ func runCheckRails(dir, modelName, fieldName string) error {
 	schemaFile := filepath.Join(dir, "db", "schema.rb")
 	src, err := os.ReadFile(schemaFile)
 	if err != nil {
+		if errors.Is(err, os.ErrNotExist) {
+			fmt.Fprintf(os.Stderr, "Warning: %s not found; skipping model and field validation.\n\n", schemaFile)
+			return runScan(dir, modelName, fieldName, scanner.ScanRuby)
+		}
 		return fmt.Errorf("read %s: %w", schemaFile, err)
 	}
 	fields, err := parseSchemaRb(src)
@@ -138,6 +143,10 @@ func runCheckFields(dir, modelName, fieldName string, allFields []parser.Field, 
 			fieldName, modelName, strings.Join(fieldNames, ", "))
 	}
 
+	return runScan(dir, modelName, fieldName, scan)
+}
+
+func runScan(dir, modelName, fieldName string, scan func(string, string) ([]scanner.Reference, int, error)) error {
 	refs, count, err := scan(dir, fieldName)
 	if err != nil {
 		return err

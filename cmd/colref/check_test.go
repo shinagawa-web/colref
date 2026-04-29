@@ -413,9 +413,57 @@ func TestRunCheck_Rails_UnknownField(t *testing.T) {
 }
 
 func TestRunCheck_Rails_NoSchemaFile(t *testing.T) {
-	err := runCheck(t.TempDir(), "User", "email", "rails")
+	// No schema.rb present: should warn and scan without field validation.
+	if err := runCheck(t.TempDir(), "User", "email", "rails"); err != nil {
+		t.Fatalf("no-schema path should not error: %v", err)
+	}
+}
+
+func TestRunCheck_Rails_NoSchemaFile_RefsFound(t *testing.T) {
+	dir := t.TempDir()
+	if err := os.WriteFile(filepath.Join(dir, "app.rb"), []byte("user.email\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if err := runCheck(dir, "User", "email", "rails"); err != nil {
+		t.Fatalf("no-schema path with refs should not error: %v", err)
+	}
+}
+
+func TestRunCheck_Rails_NoSchemaFile_ScanError(t *testing.T) {
+	dir := t.TempDir()
+	unreadable := filepath.Join(dir, "app.rb")
+	if err := os.WriteFile(unreadable, []byte("user.email\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Chmod(unreadable, 0o000); err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = os.Chmod(unreadable, 0o644) })
+
+	err := runCheck(dir, "User", "email", "rails")
 	if err == nil {
-		t.Fatal("expected error for missing schema.rb")
+		t.Fatal("expected scan error for unreadable .rb file")
+	}
+}
+
+func TestRunCheck_Rails_SchemaReadPermError(t *testing.T) {
+	dir := t.TempDir()
+	dbDir := filepath.Join(dir, "db")
+	if err := os.MkdirAll(dbDir, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	schemaPath := filepath.Join(dbDir, "schema.rb")
+	if err := os.WriteFile(schemaPath, []byte("# schema"), 0o000); err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = os.Chmod(schemaPath, 0o644) })
+
+	err := runCheck(dir, "User", "email", "rails")
+	if err == nil {
+		t.Fatal("expected error for unreadable schema.rb")
+	}
+	if !strings.Contains(err.Error(), "read") {
+		t.Errorf("expected 'read' in error, got: %v", err)
 	}
 }
 
