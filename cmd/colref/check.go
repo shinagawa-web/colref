@@ -12,9 +12,13 @@ import (
 	"github.com/shinagawa-web/colref/internal/scanner"
 )
 
-// parseModels is the function used to parse a models.py source file.
+// buildModelSet is the function used to build the cross-file Django model set.
 // It is a var so tests can inject a failing version to cover error paths.
-var parseModels = parser.ParseModels
+var buildModelSet = parser.BuildModelSet
+
+// parseModelsWithSet is the function used to extract fields from a source file
+// given a pre-built model set. It is a var so tests can inject a failing version.
+var parseModelsWithSet = parser.ParseModelsWithSet
 
 // parseSchemaRb is the function used to parse a db/schema.rb source file.
 // It is a var so tests can inject a failing version to cover error paths.
@@ -57,17 +61,30 @@ func runCheckDjango(dir, modelName, fieldName string) error {
 		return fmt.Errorf("no models.py found under %s", dir)
 	}
 
+	// Read all sources first so we can build a cross-file model set.
+	sources := make([][]byte, len(modelsFiles))
+	for i, f := range modelsFiles {
+		src, err := os.ReadFile(f)
+		if err != nil {
+			return err
+		}
+		sources[i] = src
+	}
+
+	// Phase 1: build the Django model set using transitive closure across all files.
+	modelSet, err := buildModelSet(sources)
+	if err != nil {
+		return fmt.Errorf("build model set: %w", err)
+	}
+
+	// Phase 2: extract fields per file using the cross-file model set.
 	type parsedFile struct {
 		path   string
 		fields []orm.Field
 	}
 	var parsed []parsedFile
-	for _, f := range modelsFiles {
-		src, err := os.ReadFile(f)
-		if err != nil {
-			return err
-		}
-		fields, err := parseModels(src)
+	for i, f := range modelsFiles {
+		fields, err := parseModelsWithSet(sources[i], modelSet)
 		if err != nil {
 			return fmt.Errorf("parse %s: %w", f, err)
 		}

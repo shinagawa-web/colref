@@ -475,6 +475,198 @@ class MyModel(models.Model):
 	}
 }
 
+// TestParseModels_CustomBaseNoModelSuffix verifies that a class inheriting from a
+// custom base whose name does not end in "Model" is correctly detected when that
+// base inherits from models.Model in the same file.
+func TestParseModels_CustomBaseNoModelSuffix(t *testing.T) {
+	src := []byte(`
+from django.db import models
+
+class ModelWithMetadata(models.Model):
+    metadata = models.JSONField(default=dict)
+
+class Order(ModelWithMetadata):
+    number = models.CharField(max_length=50)
+`)
+
+	fields, err := ParseModels(src)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	found := map[string]bool{}
+	for _, f := range fields {
+		found[f.Model] = true
+	}
+	if !found["ModelWithMetadata"] {
+		t.Error("expected ModelWithMetadata to be detected")
+	}
+	if !found["Order"] {
+		t.Error("expected Order (inheriting non-'Model'-suffixed base) to be detected")
+	}
+}
+
+// TestBuildModelSet_CrossFile verifies the Saleor scenario: ModelWithMetadata is
+// defined in one file and Order is in another; both should be in the model set.
+func TestBuildModelSet_CrossFile(t *testing.T) {
+	coreModels := []byte(`
+from django.db import models
+
+class ModelWithMetadata(models.Model):
+    metadata = models.JSONField(default=dict)
+`)
+	orderModels := []byte(`
+from core.models import ModelWithMetadata
+
+class Order(ModelWithMetadata):
+    number = models.CharField(max_length=50)
+    status = models.CharField(max_length=32)
+`)
+
+	modelSet, err := BuildModelSet([][]byte{coreModels, orderModels})
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	if !modelSet["ModelWithMetadata"] {
+		t.Error("expected ModelWithMetadata in model set")
+	}
+	if !modelSet["Order"] {
+		t.Error("expected Order (cross-file transitive) in model set")
+	}
+}
+
+// TestBuildModelSet_MultiHopTransitive verifies that A→B→C transitive chains are resolved.
+func TestBuildModelSet_MultiHopTransitive(t *testing.T) {
+	src := []byte(`
+from django.db import models
+
+class A(models.Model):
+    x = models.IntegerField()
+
+class B(A):
+    y = models.IntegerField()
+
+class C(B):
+    z = models.IntegerField()
+
+class NotModel(SomeOtherBase):
+    w = models.IntegerField()
+`)
+
+	fields, err := ParseModels(src)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	found := map[string][]string{}
+	for _, f := range fields {
+		found[f.Model] = append(found[f.Model], f.Name)
+	}
+	if _, ok := found["A"]; !ok {
+		t.Error("expected A to be detected")
+	}
+	if _, ok := found["B"]; !ok {
+		t.Error("expected B (one hop) to be detected")
+	}
+	if _, ok := found["C"]; !ok {
+		t.Error("expected C (two hops) to be detected")
+	}
+	if _, ok := found["NotModel"]; ok {
+		t.Error("expected NotModel to NOT be detected")
+	}
+}
+
+// TestParseModels_BareModelImport covers the bare "Model" identifier path in
+// extractClassEntries (n == "Model" sets isDirectDjango). This represents the
+// pattern: from django.db.models import Model; class Foo(Model): ...
+func TestParseModels_BareModelImport(t *testing.T) {
+	src := []byte(`
+from django.db.models import Model
+
+class Product(Model):
+    name = models.CharField(max_length=200)
+    price = models.DecimalField(max_digits=10, decimal_places=2)
+`)
+	fields, err := ParseModels(src)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	found := map[string]bool{}
+	for _, f := range fields {
+		found[f.Name] = true
+	}
+	if !found["name"] {
+		t.Error("expected 'name' field from class inheriting bare Model identifier")
+	}
+	if !found["price"] {
+		t.Error("expected 'price' field from class inheriting bare Model identifier")
+	}
+}
+
+// TestBuildModelSet_ParseError covers the parseCtxFn error path in BuildModelSet.
+func TestBuildModelSet_ParseError(t *testing.T) {
+	orig := parseCtxFn
+	parseCtxFn = func(p *sitter.Parser, ctx context.Context, oldTree *sitter.Tree, src []byte) (*sitter.Tree, error) {
+		return nil, context.Canceled
+	}
+	defer func() { parseCtxFn = orig }()
+
+	_, err := BuildModelSet([][]byte{[]byte(`x = 1`)})
+	if err == nil {
+		t.Fatal("expected error from BuildModelSet when parseCtxFn fails")
+	}
+}
+
+// TestParseModelsWithSet covers direct usage of ParseModelsWithSet including
+// normal field extraction and the parseCtxFn error path.
+func TestParseModelsWithSet(t *testing.T) {
+	src := []byte(`
+from django.db import models
+
+class Order(models.Model):
+    status = models.CharField(max_length=32)
+    total = models.DecimalField(max_digits=10, decimal_places=2)
+
+class NotAModel:
+    value = models.IntegerField()
+`)
+	modelSet := map[string]bool{"Order": true}
+
+	fields, err := ParseModelsWithSet(src, modelSet)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	found := map[string]bool{}
+	for _, f := range fields {
+		if f.Model != "Order" {
+			t.Errorf("unexpected model %q", f.Model)
+		}
+		found[f.Name] = true
+	}
+	if !found["status"] {
+		t.Error("expected 'status' field")
+	}
+	if !found["total"] {
+		t.Error("expected 'total' field")
+	}
+}
+
+// TestParseModelsWithSet_ParseError covers the parseCtxFn error path in ParseModelsWithSet.
+func TestParseModelsWithSet_ParseError(t *testing.T) {
+	orig := parseCtxFn
+	parseCtxFn = func(p *sitter.Parser, ctx context.Context, oldTree *sitter.Tree, src []byte) (*sitter.Tree, error) {
+		return nil, context.Canceled
+	}
+	defer func() { parseCtxFn = orig }()
+
+	_, err := ParseModelsWithSet([]byte(`x = 1`), map[string]bool{})
+	if err == nil {
+		t.Fatal("expected error from ParseModelsWithSet when parseCtxFn fails")
+	}
+}
+
 func TestDjangoParser_ParseSchema(t *testing.T) {
 	src := []byte(`
 from django.db import models
