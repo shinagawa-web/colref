@@ -2,6 +2,8 @@ package parser
 
 import (
 	"context"
+	"fmt"
+	"strings"
 	"testing"
 
 	sitter "github.com/smacker/go-tree-sitter"
@@ -249,11 +251,11 @@ class MyModel(models.Model):
 	}
 }
 
-// BenchmarkParseModels uses a large models.py representative of a medium-sized
-// Django project (~20 models, ~100 fields) — comparable to projects like NetBox
-// or django-oscar.
+// BenchmarkParseModels uses a models.py with 8 realistic base models plus 1,000 generated
+// ones (~12,000 lines total) — well above BookWyrm/django-oscar scale for stress testing.
 func BenchmarkParseModels(b *testing.B) {
-	src := []byte(`
+	var sb strings.Builder
+	sb.WriteString(`
 from django.db import models
 from django.contrib.auth.models import AbstractUser
 
@@ -417,6 +419,25 @@ class EmailAddress(models.Model):
     is_verified = models.BooleanField(default=False)
     verified_at = models.DateTimeField(null=True, blank=True)
 `)
+	// Generate 1,000 additional models to scale to ~12,000 lines total.
+	for i := 0; i < 1000; i++ {
+		fmt.Fprintf(&sb,
+			"\nclass Generated%03d(models.Model):\n"+
+				"    name = models.CharField(max_length=200)\n"+
+				"    code = models.CharField(max_length=50, unique=True)\n"+
+				"    description = models.TextField(blank=True)\n"+
+				"    is_active = models.BooleanField(default=True)\n"+
+				"    priority = models.IntegerField(default=0)\n"+
+				"    score = models.FloatField(null=True, blank=True)\n"+
+				"    created_at = models.DateTimeField(auto_now_add=True)\n"+
+				"    updated_at = models.DateTimeField(auto_now=True)\n"+
+				"    owner = models.ForeignKey(\"User\", on_delete=models.CASCADE, related_name=\"gen%03d_set\")\n"+
+				"    metadata = models.JSONField(default=dict)\n",
+			i, i,
+		)
+	}
+
+	src := []byte(sb.String())
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
 		if _, err := ParseModels(src); err != nil {
