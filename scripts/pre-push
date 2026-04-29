@@ -10,4 +10,14 @@ make static-lint
 echo "==> Running tests with coverage check..."
 make check-coverage
 
+if [ "${SKIP_BENCH_COMPARE:-0}" = "1" ]; then
+    echo "==> Skipping benchmark comparison (SKIP_BENCH_COMPARE=1)."
+elif command -v benchstat >/dev/null 2>&1; then
+    echo "==> Running benchmark comparison..."
+    make bench-compare
+else
+    echo "==> benchstat not found; running benchmarks without comparison..."
+    make bench
+fi
+
 echo "==> All checks passed."
