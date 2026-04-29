@@ -141,3 +141,21 @@ func TestRunCheck_NoModelsFile(t *testing.T) {
 		t.Errorf("unexpected error: %v", err)
 	}
 }
+
+func TestRunCheck_NoModelsDetected(t *testing.T) {
+	dir := t.TempDir()
+	if err := os.WriteFile(filepath.Join(dir, "models.py"), []byte(`
+class NotAModel:
+    pass
+`), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	err := runCheck(dir, "User", "email", "")
+	if err == nil {
+		t.Fatal("expected error when no models detected")
+	}
+	if !strings.Contains(err.Error(), "no models detected") {
+		t.Errorf("error should mention 'no models detected', got: %v", err)
+	}
+}
