@@ -17,5 +17,6 @@ type SchemaParser interface {
 
 type ReferenceScanner interface {
 	Scan(dir, fieldName string) ([]Reference, int, error)
+	// SkipDirs returns a copy of the directory names that are never scanned.
 	SkipDirs() map[string]bool
 }

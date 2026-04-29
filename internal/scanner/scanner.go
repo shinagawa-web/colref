@@ -25,9 +25,13 @@ func (PythonScanner) Scan(dir, fieldName string) ([]orm.Reference, int, error) {
 	return Scan(dir, fieldName)
 }
 
-// SkipDirs implements orm.ReferenceScanner.
+// SkipDirs implements orm.ReferenceScanner, returning a defensive copy.
 func (PythonScanner) SkipDirs() map[string]bool {
-	return SkipDirs
+	copy := make(map[string]bool, len(SkipDirs))
+	for k, v := range SkipDirs {
+		copy[k] = v
+	}
+	return copy
 }
 
 // SkipDirs is the set of directory names that are never scanned.
