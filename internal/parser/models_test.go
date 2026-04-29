@@ -249,6 +249,37 @@ class MyModel(models.Model):
 	}
 }
 
+func BenchmarkParseModels(b *testing.B) {
+	src := []byte(`
+from django.db import models
+
+class User(models.Model):
+    email = models.EmailField(max_length=254)
+    name = models.CharField(max_length=100)
+    created_at = models.DateTimeField(auto_now_add=True)
+    is_active = models.BooleanField(default=True)
+
+class Post(models.Model):
+    title = models.CharField(max_length=200)
+    body = models.TextField()
+    author = models.ForeignKey(User, on_delete=models.CASCADE)
+    published_at = models.DateTimeField(null=True)
+    slug = models.SlugField(unique=True)
+
+class Comment(models.Model):
+    post = models.ForeignKey(Post, on_delete=models.CASCADE)
+    author = models.ForeignKey(User, on_delete=models.CASCADE)
+    body = models.TextField()
+    created_at = models.DateTimeField(auto_now_add=True)
+`)
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		if _, err := ParseModels(src); err != nil {
+			b.Fatal(err)
+		}
+	}
+}
+
 // TestIsDjangoField_ThirdPartyAttribute covers the attribute branch where the
 // object is not "models" but the attribute name ends in "Field" (third-party fields),
 // and the case where neither condition matches (returns false).
