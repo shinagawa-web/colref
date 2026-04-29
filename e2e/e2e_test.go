@@ -73,6 +73,19 @@ func TestE2E_Django(t *testing.T) {
 		assertContains(t, out, `"phone" not found`)
 		assertContains(t, out, "Available fields:")
 	})
+
+	t.Run("CrossFileInheritance", func(t *testing.T) {
+		// Order inherits from TrackedItem (defined in base/models.py).
+		// This verifies cross-file transitive closure: Order.total must be
+		// detected even though TrackedItem is defined in a separate file.
+		out, err := run(t, "check", "--orm", "django", "--model", "Order", "--field", "total", fixture)
+		if err != nil {
+			t.Fatalf("model Order should be detected via cross-file inheritance: %v\noutput:\n%s", err, out)
+		}
+		// No view files reference Order.total, so "No references found" is expected.
+		// Success (exit 0) confirms model and field were resolved across files.
+		assertContains(t, out, "Order.total")
+	})
 }
 
 func TestE2E_Rails(t *testing.T) {
