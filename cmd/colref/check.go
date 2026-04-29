@@ -24,21 +24,19 @@ var parseSchemaRb = parser.ParseSchemaRb
 // It is a var so tests can inject a failing version to cover error paths.
 var filepathRelFn = filepath.Rel
 
-func runCheck(dir, modelName, fieldName, modelsFile, schemaFile string) error {
-	// Auto-detect Rails when db/schema.rb exists (or --schema-file is set).
-	if schemaFile == "" {
-		candidate := filepath.Join(dir, "db", "schema.rb")
-		if _, err := os.Stat(candidate); err == nil {
-			schemaFile = candidate
-		}
+func runCheck(dir, modelName, fieldName, ormName string) error {
+	switch ormName {
+	case "django":
+		return runCheckDjango(dir, modelName, fieldName)
+	case "rails":
+		return runCheckRails(dir, modelName, fieldName)
+	default:
+		return fmt.Errorf("unknown --orm %q: supported values are django, rails", ormName)
 	}
-	if schemaFile != "" {
-		return runCheckRails(dir, modelName, fieldName, schemaFile)
-	}
-	return runCheckDjango(dir, modelName, fieldName, modelsFile)
 }
 
-func runCheckRails(dir, modelName, fieldName, schemaFile string) error {
+func runCheckRails(dir, modelName, fieldName string) error {
+	schemaFile := filepath.Join(dir, "db", "schema.rb")
 	src, err := os.ReadFile(schemaFile)
 	if err != nil {
 		return err
@@ -47,22 +45,16 @@ func runCheckRails(dir, modelName, fieldName, schemaFile string) error {
 	if err != nil {
 		return fmt.Errorf("parse %s: %w", schemaFile, err)
 	}
-	return runCheckFields(dir, modelName, fieldName, fields, scanner.ScanRuby, "Use --schema-file to specify a different schema.")
+	return runCheckFields(dir, modelName, fieldName, fields, scanner.ScanRuby)
 }
 
-func runCheckDjango(dir, modelName, fieldName, modelsFile string) error {
-	var modelsFiles []string
-	if modelsFile != "" {
-		modelsFiles = []string{modelsFile}
-	} else {
-		var err error
-		modelsFiles, err = findModelsFiles(dir)
-		if err != nil {
-			return err
-		}
-		if len(modelsFiles) == 0 {
-			return fmt.Errorf("no models.py found under %s", dir)
-		}
+func runCheckDjango(dir, modelName, fieldName string) error {
+	modelsFiles, err := findModelsFiles(dir)
+	if err != nil {
+		return err
+	}
+	if len(modelsFiles) == 0 {
+		return fmt.Errorf("no models.py found under %s", dir)
 	}
 
 	type parsedFile struct {
@@ -102,7 +94,7 @@ func runCheckDjango(dir, modelName, fieldName, modelsFile string) error {
 			}
 			lines = append(lines, "  "+rel)
 		}
-		lines = append(lines, "Use --models-file to specify which one.")
+		lines = append(lines, "Use --model to disambiguate.")
 		return fmt.Errorf("%s", strings.Join(lines, "\n"))
 	}
 
@@ -111,10 +103,10 @@ func runCheckDjango(dir, modelName, fieldName, modelsFile string) error {
 		allFields = append(allFields, pf.fields...)
 	}
 
-	return runCheckFields(dir, modelName, fieldName, allFields, scanner.Scan, "Use --models-file to specify which one.")
+	return runCheckFields(dir, modelName, fieldName, allFields, scanner.Scan)
 }
 
-func runCheckFields(dir, modelName, fieldName string, allFields []parser.Field, scan func(string, string) ([]scanner.Reference, int, error), _ string) error {
+func runCheckFields(dir, modelName, fieldName string, allFields []parser.Field, scan func(string, string) ([]scanner.Reference, int, error)) error {
 	fieldNames := fieldsForModel(allFields, modelName)
 	if len(fieldNames) == 0 {
 		known := knownModels(allFields)
