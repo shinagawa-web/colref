@@ -27,6 +27,7 @@ jobs:
               { pattern: /^refactor(\(.+\))?(!)?:/,      label: 'refactor' },
               { pattern: /^(deps|dependencies)(\(.+\))?(!)?:/, label: 'dependencies' },
               { pattern: /^ci(\(.+\))?(!)?:/,            label: 'ci' },
+              { pattern: /^test(\(.+\))?(!)?:/,          label: 'test' },
             ];
 
             const managedLabels = new Set([
@@ -100,7 +101,7 @@ jobs:
           script: |
             const managed = new Set([
               'enhancement', 'bug', 'documentation', 'chore',
-              'refactor', 'dependencies', 'ci', 'breaking-change',
+              'refactor', 'dependencies', 'ci', 'breaking-change', 'test',
             ]);
             const { data: labels } = await github.rest.issues.listLabelsOnIssue({
               owner: context.repo.owner,
