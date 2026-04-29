@@ -126,13 +126,12 @@ func TestE2E_Rails(t *testing.T) {
 	})
 
 	t.Run("NoSchemaFile", func(t *testing.T) {
-		// schema.rb absent: should warn and scan without validation.
+		// schema.rb absent: fall back to db/migrate/ for field validation.
 		fixture := "fixtures/rails-no-schema"
 		out, err := run(t, "check", "--orm", "rails", "--model", "User", "--field", "email", fixture)
 		if err != nil {
 			t.Fatalf("no-schema path should not error: %v\noutput:\n%s", err, out)
 		}
-		assertContains(t, out, "schema.rb")
 		assertContains(t, out, "References found for User.email")
 		assertContains(t, out, "app/user.rb")
 	})

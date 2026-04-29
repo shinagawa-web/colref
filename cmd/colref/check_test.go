@@ -412,37 +412,65 @@ func TestRunCheck_Rails_UnknownField(t *testing.T) {
 	}
 }
 
-func TestRunCheck_Rails_NoSchemaFile(t *testing.T) {
-	// No schema.rb present: should warn and scan without field validation.
-	if err := runCheck(t.TempDir(), "User", "email", "rails"); err != nil {
-		t.Fatalf("no-schema path should not error: %v", err)
-	}
-}
-
-func TestRunCheck_Rails_NoSchemaFile_RefsFound(t *testing.T) {
+func setupRailsMigrationsFixture(t *testing.T) string {
+	t.Helper()
 	dir := t.TempDir()
+	migrateDir := filepath.Join(dir, "db", "migrate")
+	if err := os.MkdirAll(migrateDir, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(migrateDir, "20230101000000_create_users.rb"), []byte(`
+class CreateUsers < ActiveRecord::Migration[7.0]
+  def change
+    create_table "users" do |t|
+      t.string "email", null: false
+      t.string "name"
+    end
+  end
+end
+`), 0o644); err != nil {
+		t.Fatal(err)
+	}
 	if err := os.WriteFile(filepath.Join(dir, "app.rb"), []byte("user.email\n"), 0o644); err != nil {
 		t.Fatal(err)
 	}
+	return dir
+}
+
+func TestRunCheck_Rails_NoSchemaFile(t *testing.T) {
+	// No schema.rb: fall back to db/migrate/ and reconstruct schema.
+	dir := setupRailsMigrationsFixture(t)
 	if err := runCheck(dir, "User", "email", "rails"); err != nil {
-		t.Fatalf("no-schema path with refs should not error: %v", err)
+		t.Fatalf("migrations fallback should not error: %v", err)
 	}
 }
 
-func TestRunCheck_Rails_NoSchemaFile_ScanError(t *testing.T) {
-	dir := t.TempDir()
-	unreadable := filepath.Join(dir, "app.rb")
-	if err := os.WriteFile(unreadable, []byte("user.email\n"), 0o644); err != nil {
-		t.Fatal(err)
+func TestRunCheck_Rails_NoSchemaFile_NoMigrateDir(t *testing.T) {
+	// Neither schema.rb nor db/migrate/ present.
+	err := runCheck(t.TempDir(), "User", "email", "rails")
+	if err == nil {
+		t.Fatal("expected error when both schema.rb and db/migrate/ are absent")
 	}
-	if err := os.Chmod(unreadable, 0o000); err != nil {
-		t.Fatal(err)
+	if !strings.Contains(err.Error(), "migrate") {
+		t.Errorf("error should mention 'migrate', got: %v", err)
 	}
-	t.Cleanup(func() { _ = os.Chmod(unreadable, 0o644) })
+}
 
+func TestRunCheck_Rails_NoSchemaFile_ParseMigrationsError(t *testing.T) {
+	orig := parseMigrations
+	parseMigrations = func(dir string) ([]parser.Field, error) {
+		return nil, fmt.Errorf("injected migrations error")
+	}
+	defer func() { parseMigrations = orig }()
+
+	dir := t.TempDir()
+	// No schema.rb triggers the migrations path.
 	err := runCheck(dir, "User", "email", "rails")
 	if err == nil {
-		t.Fatal("expected scan error for unreadable .rb file")
+		t.Fatal("expected error from parseMigrations injection")
+	}
+	if !strings.Contains(err.Error(), "injected migrations error") {
+		t.Errorf("unexpected error: %v", err)
 	}
 }
 

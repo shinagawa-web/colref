@@ -25,6 +25,10 @@ var parseModelsWithSet = parser.ParseModelsWithSet
 // It is a var so tests can inject a failing version to cover error paths.
 var parseSchemaRb = parser.ParseSchemaRb
 
+// parseMigrations is the function used to parse db/migrate/ files.
+// It is a var so tests can inject a failing version to cover error paths.
+var parseMigrations = parser.ParseMigrations
+
 // filepathRelFn is the function used to compute relative paths in runCheck.
 // It is a var so tests can inject a failing version to cover error paths.
 var filepathRelFn = filepath.Rel
@@ -45,14 +49,22 @@ func runCheckRails(dir, modelName, fieldName string) error {
 	src, err := os.ReadFile(schemaFile)
 	if err != nil {
 		if errors.Is(err, os.ErrNotExist) {
-			fmt.Fprintf(os.Stderr, "Warning: %s not found; skipping model and field validation.\n\n", schemaFile)
-			return runScan(dir, modelName, fieldName, scanner.ScanRuby)
+			return runCheckRailsMigrations(dir, modelName, fieldName)
 		}
 		return fmt.Errorf("read %s: %w", schemaFile, err)
 	}
 	fields, err := parseSchemaRb(src)
 	if err != nil {
 		return fmt.Errorf("parse %s: %w", schemaFile, err)
+	}
+	return runCheckFields(dir, modelName, fieldName, fields, scanner.ScanRuby)
+}
+
+func runCheckRailsMigrations(dir, modelName, fieldName string) error {
+	migrateDir := filepath.Join(dir, "db", "migrate")
+	fields, err := parseMigrations(migrateDir)
+	if err != nil {
+		return fmt.Errorf("parse migrations from %s: %w", migrateDir, err)
 	}
 	return runCheckFields(dir, modelName, fieldName, fields, scanner.ScanRuby)
 }
