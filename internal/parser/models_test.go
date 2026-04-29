@@ -1,8 +1,25 @@
 package parser
 
 import (
+	"context"
+	"fmt"
 	"testing"
+
+	sitter "github.com/smacker/go-tree-sitter"
 )
+
+func TestParseModels_ParseError(t *testing.T) {
+	orig := parseCtxFn
+	t.Cleanup(func() { parseCtxFn = orig })
+	parseCtxFn = func(_ *sitter.Parser, _ context.Context, _ *sitter.Tree, _ []byte) (*sitter.Tree, error) {
+		return nil, fmt.Errorf("injected parse error")
+	}
+
+	_, err := ParseModels([]byte(`class User(models.Model): pass`))
+	if err == nil {
+		t.Fatal("expected error from injected parse failure")
+	}
+}
 
 func TestParseModels(t *testing.T) {
 	src := []byte(`
