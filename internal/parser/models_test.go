@@ -2,6 +2,8 @@ package parser
 
 import (
 	"context"
+	"fmt"
+	"strings"
 	"testing"
 
 	sitter "github.com/smacker/go-tree-sitter"
@@ -246,6 +248,201 @@ class MyModel(models.Model):
 	}
 	if found["STATUS"] {
 		t.Error("STATUS (string literal) should not be a field")
+	}
+}
+
+// BenchmarkParseModels uses a models.py with 8 realistic base models plus 1,000 generated
+// ones (~12,000 lines total) — well above BookWyrm/django-oscar scale for stress testing.
+func BenchmarkParseModels(b *testing.B) {
+	var sb strings.Builder
+	sb.WriteString(`
+from django.db import models
+from django.contrib.auth.models import AbstractUser
+
+class User(AbstractUser):
+    email = models.EmailField(max_length=254, unique=True)
+    display_name = models.CharField(max_length=100, blank=True)
+    bio = models.TextField(blank=True)
+    avatar = models.ImageField(upload_to="avatars/", null=True, blank=True)
+    is_verified = models.BooleanField(default=False)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+class Organisation(models.Model):
+    name = models.CharField(max_length=200)
+    slug = models.SlugField(unique=True)
+    description = models.TextField(blank=True)
+    website = models.URLField(blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    owner = models.ForeignKey(User, on_delete=models.CASCADE, related_name="owned_orgs")
+
+class Membership(models.Model):
+    ROLE_CHOICES = [("admin", "Admin"), ("member", "Member"), ("viewer", "Viewer")]
+    user = models.ForeignKey(User, on_delete=models.CASCADE)
+    organisation = models.ForeignKey(Organisation, on_delete=models.CASCADE)
+    role = models.CharField(max_length=20, choices=ROLE_CHOICES, default="member")
+    joined_at = models.DateTimeField(auto_now_add=True)
+
+class Project(models.Model):
+    name = models.CharField(max_length=200)
+    slug = models.SlugField()
+    description = models.TextField(blank=True)
+    organisation = models.ForeignKey(Organisation, on_delete=models.CASCADE)
+    is_public = models.BooleanField(default=False)
+    archived = models.BooleanField(default=False)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+class Label(models.Model):
+    name = models.CharField(max_length=50)
+    color = models.CharField(max_length=7, default="#ededed")
+    project = models.ForeignKey(Project, on_delete=models.CASCADE)
+
+class Milestone(models.Model):
+    title = models.CharField(max_length=200)
+    description = models.TextField(blank=True)
+    due_date = models.DateField(null=True, blank=True)
+    project = models.ForeignKey(Project, on_delete=models.CASCADE)
+    closed_at = models.DateTimeField(null=True, blank=True)
+
+class Issue(models.Model):
+    STATE_OPEN = "open"
+    STATE_CLOSED = "closed"
+    STATE_CHOICES = [(STATE_OPEN, "Open"), (STATE_CLOSED, "Closed")]
+    title = models.CharField(max_length=500)
+    body = models.TextField(blank=True)
+    state = models.CharField(max_length=10, choices=STATE_CHOICES, default=STATE_OPEN)
+    project = models.ForeignKey(Project, on_delete=models.CASCADE)
+    author = models.ForeignKey(User, on_delete=models.SET_NULL, null=True)
+    assignee = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, blank=True, related_name="assigned_issues")
+    milestone = models.ForeignKey(Milestone, on_delete=models.SET_NULL, null=True, blank=True)
+    labels = models.ManyToManyField(Label, blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+    closed_at = models.DateTimeField(null=True, blank=True)
+
+class Comment(models.Model):
+    body = models.TextField()
+    issue = models.ForeignKey(Issue, on_delete=models.CASCADE)
+    author = models.ForeignKey(User, on_delete=models.SET_NULL, null=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+    is_edited = models.BooleanField(default=False)
+
+class PullRequest(models.Model):
+    title = models.CharField(max_length=500)
+    body = models.TextField(blank=True)
+    state = models.CharField(max_length=10, default="open")
+    project = models.ForeignKey(Project, on_delete=models.CASCADE)
+    author = models.ForeignKey(User, on_delete=models.SET_NULL, null=True)
+    source_branch = models.CharField(max_length=200)
+    target_branch = models.CharField(max_length=200)
+    merged_at = models.DateTimeField(null=True, blank=True)
+    merged_by = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, blank=True, related_name="merged_prs")
+    created_at = models.DateTimeField(auto_now_add=True)
+
+class Review(models.Model):
+    VERDICT_CHOICES = [("approve", "Approve"), ("request_changes", "Request Changes"), ("comment", "Comment")]
+    pull_request = models.ForeignKey(PullRequest, on_delete=models.CASCADE)
+    reviewer = models.ForeignKey(User, on_delete=models.SET_NULL, null=True)
+    verdict = models.CharField(max_length=20, choices=VERDICT_CHOICES)
+    body = models.TextField(blank=True)
+    submitted_at = models.DateTimeField(auto_now_add=True)
+
+class Notification(models.Model):
+    TYPE_CHOICES = [("mention", "Mention"), ("assign", "Assign"), ("review", "Review")]
+    recipient = models.ForeignKey(User, on_delete=models.CASCADE)
+    notification_type = models.CharField(max_length=20, choices=TYPE_CHOICES)
+    is_read = models.BooleanField(default=False)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+class AuditLog(models.Model):
+    ACTION_CHOICES = [("create", "Create"), ("update", "Update"), ("delete", "Delete")]
+    actor = models.ForeignKey(User, on_delete=models.SET_NULL, null=True)
+    action = models.CharField(max_length=10, choices=ACTION_CHOICES)
+    resource_type = models.CharField(max_length=50)
+    resource_id = models.IntegerField()
+    metadata = models.JSONField(default=dict)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+class ApiToken(models.Model):
+    user = models.ForeignKey(User, on_delete=models.CASCADE)
+    name = models.CharField(max_length=100)
+    token_hash = models.CharField(max_length=64, unique=True)
+    scopes = models.JSONField(default=list)
+    last_used_at = models.DateTimeField(null=True, blank=True)
+    expires_at = models.DateTimeField(null=True, blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+class Webhook(models.Model):
+    project = models.ForeignKey(Project, on_delete=models.CASCADE)
+    url = models.URLField()
+    secret = models.CharField(max_length=100, blank=True)
+    events = models.JSONField(default=list)
+    is_active = models.BooleanField(default=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+class Release(models.Model):
+    project = models.ForeignKey(Project, on_delete=models.CASCADE)
+    tag_name = models.CharField(max_length=100)
+    name = models.CharField(max_length=200, blank=True)
+    body = models.TextField(blank=True)
+    is_draft = models.BooleanField(default=False)
+    is_prerelease = models.BooleanField(default=False)
+    published_at = models.DateTimeField(null=True, blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    author = models.ForeignKey(User, on_delete=models.SET_NULL, null=True)
+
+class Star(models.Model):
+    user = models.ForeignKey(User, on_delete=models.CASCADE)
+    project = models.ForeignKey(Project, on_delete=models.CASCADE)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+class Watch(models.Model):
+    LEVEL_CHOICES = [("all", "All"), ("issues", "Issues"), ("ignore", "Ignore")]
+    user = models.ForeignKey(User, on_delete=models.CASCADE)
+    project = models.ForeignKey(Project, on_delete=models.CASCADE)
+    level = models.CharField(max_length=10, choices=LEVEL_CHOICES, default="all")
+
+class SshKey(models.Model):
+    user = models.ForeignKey(User, on_delete=models.CASCADE)
+    title = models.CharField(max_length=200)
+    key = models.TextField()
+    fingerprint = models.CharField(max_length=100, unique=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    last_used_at = models.DateTimeField(null=True, blank=True)
+
+class EmailAddress(models.Model):
+    user = models.ForeignKey(User, on_delete=models.CASCADE)
+    email = models.EmailField(unique=True)
+    is_primary = models.BooleanField(default=False)
+    is_verified = models.BooleanField(default=False)
+    verified_at = models.DateTimeField(null=True, blank=True)
+`)
+	// Generate 1,000 additional models to scale to ~12,000 lines total.
+	for i := 0; i < 1000; i++ {
+		fmt.Fprintf(&sb,
+			"\nclass Generated%03d(models.Model):\n"+
+				"    name = models.CharField(max_length=200)\n"+
+				"    code = models.CharField(max_length=50, unique=True)\n"+
+				"    description = models.TextField(blank=True)\n"+
+				"    is_active = models.BooleanField(default=True)\n"+
+				"    priority = models.IntegerField(default=0)\n"+
+				"    score = models.FloatField(null=True, blank=True)\n"+
+				"    created_at = models.DateTimeField(auto_now_add=True)\n"+
+				"    updated_at = models.DateTimeField(auto_now=True)\n"+
+				"    owner = models.ForeignKey(\"User\", on_delete=models.CASCADE, related_name=\"gen%03d_set\")\n"+
+				"    metadata = models.JSONField(default=dict)\n",
+			i, i,
+		)
+	}
+
+	src := []byte(sb.String())
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		if _, err := ParseModels(src); err != nil {
+			b.Fatal(err)
+		}
 	}
 }
 
