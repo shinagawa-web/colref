@@ -476,4 +476,3 @@ drop_table 42
 		t.Errorf("expected no fields, got %v", fields)
 	}
 }
-
