@@ -604,7 +604,7 @@ func TestRubyScanner_Methods(t *testing.T) {
 
 	skipDirs := s.SkipDirs()
 	if !skipDirs["node_modules"] {
-		t.Error("expected node_modules to be in SkipDirs")
+		t.Error("expected node_modules to be in RubySkipDirs")
 	}
 	if !skipDirs["spec"] {
 		t.Error("expected spec to be in RubySkipDirs")
@@ -922,6 +922,21 @@ func TestERBToRuby(t *testing.T) {
 			input: "hello\nworld",
 			want:  "     \n     ",
 		},
+		{
+			name:  "double-quoted string: %> inside is not a closing tag",
+			input: `<%= "%>" %>`,
+			want:  `    "%>"   `,
+		},
+		{
+			name:  "single-quoted string: %> inside is not a closing tag",
+			input: `<%= '%>' %>`,
+			want:  `    '%>'   `,
+		},
+		{
+			name:  "escaped quote inside string does not close string early",
+			input: "<%= \"a\\\"b\" %>",
+			want:  "    \"a\\\"b\"   ",
+		},
 	}
 
 	for _, tc := range tests {
@@ -931,6 +946,19 @@ func TestERBToRuby(t *testing.T) {
 				t.Errorf("erbToRuby(%q)\nwant: %q\n got: %q", tc.input, tc.want, got)
 			}
 		})
+	}
+}
+
+func TestScanRuby_ERBStringLiteralWithPercentGT(t *testing.T) {
+	dir := t.TempDir()
+	writeFile(t, dir, "show.html.erb", `<%= "%>" %>`)
+
+	refs, _, err := ScanRuby(dir, "email")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(refs) != 0 {
+		t.Errorf("want 0 refs (string literal contains %%>, not a call), got %d: %v", len(refs), refs)
 	}
 }
 
