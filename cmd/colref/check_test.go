@@ -461,8 +461,8 @@ func TestRunCheck_Django_ModelsPackage_SkipHiddenDir(t *testing.T) {
 	if err == nil {
 		t.Fatal("expected error: models/ inside hidden dir should be skipped")
 	}
-	if !strings.Contains(err.Error(), "no models.py") {
-		t.Errorf("unexpected error: %v", err)
+	if !strings.Contains(err.Error(), "models.py") || !strings.Contains(err.Error(), "models/") {
+		t.Errorf("error should mention both models.py and models/, got: %v", err)
 	}
 }
 
