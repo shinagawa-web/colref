@@ -7,6 +7,7 @@ import (
 	"path/filepath"
 	"strings"
 
+	"github.com/shinagawa-web/colref/internal/orm"
 	"github.com/shinagawa-web/colref/internal/parser"
 	"github.com/shinagawa-web/colref/internal/scanner"
 )
@@ -30,7 +31,7 @@ func runCheck(dir, modelName, fieldName, modelsFile string) error {
 	// Parse each file and index models → source files.
 	type parsedFile struct {
 		path   string
-		fields []parser.Field
+		fields []orm.Field
 	}
 	var parsed []parsedFile
 	for _, f := range modelsFiles {
@@ -70,7 +71,7 @@ func runCheck(dir, modelName, fieldName, modelsFile string) error {
 		return fmt.Errorf("%s", strings.Join(lines, "\n"))
 	}
 
-	var allFields []parser.Field
+	var allFields []orm.Field
 	for _, pf := range parsed {
 		allFields = append(allFields, pf.fields...)
 	}
@@ -111,7 +112,7 @@ func runCheck(dir, modelName, fieldName, modelsFile string) error {
 	return nil
 }
 
-func printRefs(refs []scanner.Reference) {
+func printRefs(refs []orm.Reference) {
 	maxWidth := 0
 	for _, r := range refs {
 		if w := len(fmt.Sprintf("%s:%d", r.File, r.Line)); w > maxWidth {
@@ -145,7 +146,7 @@ func findModelsFiles(dir string) ([]string, error) {
 	return files, err
 }
 
-func fieldsForModel(fields []parser.Field, model string) []string {
+func fieldsForModel(fields []orm.Field, model string) []string {
 	var names []string
 	for _, f := range fields {
 		if f.Model == model {
@@ -155,7 +156,7 @@ func fieldsForModel(fields []parser.Field, model string) []string {
 	return names
 }
 
-func knownModels(fields []parser.Field) []string {
+func knownModels(fields []orm.Field) []string {
 	seen := map[string]bool{}
 	var models []string
 	for _, f := range fields {
