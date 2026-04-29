@@ -16,7 +16,7 @@ func main() {
 
 var rootCmd = &cobra.Command{
 	Use:           "colref",
-	Short:         "Check whether a DB column is still referenced before you delete it",
+	Short:         "Check whether a DB column is still referenced before you delete it.", // trigger CI
 	SilenceUsage:  true,
 	SilenceErrors: true,
 }
