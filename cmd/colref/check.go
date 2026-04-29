@@ -16,12 +16,41 @@ import (
 // It is a var so tests can inject a failing version to cover error paths.
 var parseModels = parser.ParseModels
 
+// parseSchemaRb is the function used to parse a db/schema.rb source file.
+// It is a var so tests can inject a failing version to cover error paths.
+var parseSchemaRb = parser.ParseSchemaRb
+
 // filepathRelFn is the function used to compute relative paths in runCheck.
 // It is a var so tests can inject a failing version to cover error paths.
 var filepathRelFn = filepath.Rel
 
-func runCheck(dir, modelName, fieldName, modelsFile string) error {
-	// Determine which models.py files to parse.
+func runCheck(dir, modelName, fieldName, modelsFile, schemaFile string) error {
+	// Auto-detect Rails when db/schema.rb exists (or --schema-file is set).
+	if schemaFile == "" {
+		candidate := filepath.Join(dir, "db", "schema.rb")
+		if _, err := os.Stat(candidate); err == nil {
+			schemaFile = candidate
+		}
+	}
+	if schemaFile != "" {
+		return runCheckRails(dir, modelName, fieldName, schemaFile)
+	}
+	return runCheckDjango(dir, modelName, fieldName, modelsFile)
+}
+
+func runCheckRails(dir, modelName, fieldName, schemaFile string) error {
+	src, err := os.ReadFile(schemaFile)
+	if err != nil {
+		return err
+	}
+	fields, err := parseSchemaRb(src)
+	if err != nil {
+		return fmt.Errorf("parse %s: %w", schemaFile, err)
+	}
+	return runCheckFields(dir, modelName, fieldName, fields, scanner.ScanRuby, "Use --schema-file to specify a different schema.")
+}
+
+func runCheckDjango(dir, modelName, fieldName, modelsFile string) error {
 	var modelsFiles []string
 	if modelsFile != "" {
 		modelsFiles = []string{modelsFile}
@@ -36,7 +65,6 @@ func runCheck(dir, modelName, fieldName, modelsFile string) error {
 		}
 	}
 
-	// Parse each file and index models → source files.
 	type parsedFile struct {
 		path   string
 		fields []orm.Field
@@ -65,7 +93,6 @@ func runCheck(dir, modelName, fieldName, modelsFile string) error {
 		}
 	}
 
-	// Conflict: same model name in multiple files.
 	if files := modelToFiles[modelName]; len(files) > 1 {
 		lines := []string{fmt.Sprintf("model %q found in multiple files:", modelName)}
 		for _, f := range files {
@@ -84,7 +111,10 @@ func runCheck(dir, modelName, fieldName, modelsFile string) error {
 		allFields = append(allFields, pf.fields...)
 	}
 
-	// Validate model exists.
+	return runCheckFields(dir, modelName, fieldName, allFields, scanner.Scan, "Use --models-file to specify which one.")
+}
+
+func runCheckFields(dir, modelName, fieldName string, allFields []parser.Field, scan func(string, string) ([]scanner.Reference, int, error), _ string) error {
 	fieldNames := fieldsForModel(allFields, modelName)
 	if len(fieldNames) == 0 {
 		known := knownModels(allFields)
@@ -94,14 +124,12 @@ func runCheck(dir, modelName, fieldName, modelsFile string) error {
 		return fmt.Errorf("model %q not found\nAvailable models: %s", modelName, strings.Join(known, ", "))
 	}
 
-	// Validate field exists.
 	if !containsField(fieldNames, fieldName) {
 		return fmt.Errorf("field %q not found in model %q\nAvailable fields: %s",
 			fieldName, modelName, strings.Join(fieldNames, ", "))
 	}
 
-	// Scan the codebase.
-	refs, count, err := scanner.Scan(dir, fieldName)
+	refs, count, err := scan(dir, fieldName)
 	if err != nil {
 		return err
 	}

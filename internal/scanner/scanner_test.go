@@ -512,3 +512,405 @@ func TestScan_FExpression_NotDetected(t *testing.T) {
 		t.Errorf("F() expression should not be detected in v0.1, got %d: %v", len(refs), refs)
 	}
 }
+
+func TestScanRuby_BasicMatch(t *testing.T) {
+	dir := t.TempDir()
+	writeFile(t, dir, "app.rb", `
+def show
+  render json: user.email
+end
+`)
+
+	refs, count, err := ScanRuby(dir, "email")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if count != 1 {
+		t.Fatalf("want 1 file scanned, got %d", count)
+	}
+	if len(refs) != 1 {
+		t.Fatalf("want 1 ref, got %d: %v", len(refs), refs)
+	}
+	if refs[0].Text != "user.email" {
+		t.Errorf("want text %q, got %q", "user.email", refs[0].Text)
+	}
+	if refs[0].Line != 3 {
+		t.Errorf("want line 3, got %d", refs[0].Line)
+	}
+}
+
+func TestScanRuby_SkipNonRbFiles(t *testing.T) {
+	dir := t.TempDir()
+	writeFile(t, dir, "views.py", `return user.email`)
+
+	refs, count, err := ScanRuby(dir, "email")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if count != 0 {
+		t.Errorf("want 0 .rb files scanned, got %d", count)
+	}
+	if len(refs) != 0 {
+		t.Errorf("want no refs from .py file, got %v", refs)
+	}
+}
+
+func TestScanRuby_MultiLine(t *testing.T) {
+	dir := t.TempDir()
+	// Method on a different line than the receiver.
+	writeFile(t, dir, "app.rb", "user\n  .email\n")
+
+	refs, _, err := ScanRuby(dir, "email")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(refs) != 1 {
+		t.Fatalf("want 1 ref for multi-line chain, got %d: %v", len(refs), refs)
+	}
+	if refs[0].Line != 2 {
+		t.Errorf("want line 2 (method line), got %d", refs[0].Line)
+	}
+	if refs[0].Text != ".email" {
+		t.Errorf("want trimmed method line %q, got %q", ".email", refs[0].Text)
+	}
+}
+
+func TestScanRuby_NoMatch(t *testing.T) {
+	dir := t.TempDir()
+	writeFile(t, dir, "app.rb", `user.name`)
+
+	refs, _, err := ScanRuby(dir, "email")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(refs) != 0 {
+		t.Errorf("want no refs, got %v", refs)
+	}
+}
+
+func TestRubyScanner_Methods(t *testing.T) {
+	dir := t.TempDir()
+	writeFile(t, dir, "app.rb", `user.email`)
+
+	s := RubyScanner{}
+
+	refs, count, err := s.Scan(dir, "email")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if count != 1 || len(refs) != 1 {
+		t.Errorf("unexpected result: count=%d refs=%v", count, refs)
+	}
+
+	skipDirs := s.SkipDirs()
+	if !skipDirs["node_modules"] {
+		t.Error("expected node_modules to be in SkipDirs")
+	}
+}
+
+// BenchmarkScan uses 1,000 Python files (200 apps × 5 files, ~100 lines each) with
+// per-app generated names — comparable to BookWyrm scale (~433 files, ~52k lines)
+// in line density while exceeding it in file count.
+func BenchmarkScan(b *testing.B) {
+	dir := b.TempDir()
+
+	const viewsFmt = `
+from django.shortcuts import get_object_or_404, render
+from django.http import JsonResponse
+from django.views import View
+from django.contrib.auth.decorators import login_required
+
+def list_%[1]d(request):
+    qs = User.objects.filter(is_active=True).select_related("profile")
+    return JsonResponse([u.email for u in qs], safe=False)
+
+def detail_%[1]d(request, pk):
+    user = get_object_or_404(User, pk=pk)
+    return JsonResponse({"id": user.pk, "email": user.email, "name": user.display_name})
+
+def create_%[1]d(request):
+    email = request.POST.get("email")
+    if User.objects.filter(email=email).exists():
+        return JsonResponse({"error": "email taken"}, status=400)
+    user = User.objects.create(email=email, display_name=request.POST.get("name", ""))
+    return JsonResponse({"id": user.pk, "email": user.email}, status=201)
+
+def update_%[1]d(request, pk):
+    user = get_object_or_404(User, pk=pk)
+    user.display_name = request.POST.get("name", user.display_name)
+    user.save()
+    return JsonResponse({"email": user.email, "name": user.display_name})
+
+def delete_%[1]d(request, pk):
+    user = get_object_or_404(User, pk=pk)
+    email = user.email
+    user.delete()
+    return JsonResponse({"deleted": email})
+
+@login_required
+def profile_%[1]d(request):
+    return render(request, "profile.html", {
+        "email": request.user.email,
+        "name": request.user.display_name,
+    })
+
+class App%[1]dListView(View):
+    def get(self, request):
+        users = User.objects.filter(is_active=True).order_by("-created_at")
+        data = [{"id": u.pk, "email": u.email, "name": u.display_name} for u in users]
+        return JsonResponse({"results": data, "count": len(data)})
+
+class App%[1]dDetailView(View):
+    def get(self, request, pk):
+        user = get_object_or_404(User, pk=pk)
+        return JsonResponse({"id": user.pk, "email": user.email, "verified": user.is_verified})
+
+    def patch(self, request, pk):
+        user = get_object_or_404(User, pk=pk)
+        if name := request.POST.get("name"):
+            user.display_name = name
+        user.save()
+        return JsonResponse({"email": user.email})
+
+    def delete(self, request, pk):
+        user = get_object_or_404(User, pk=pk)
+        email = user.email
+        user.delete()
+        return JsonResponse({"deleted": email})
+
+class App%[1]dCreateView(View):
+    def post(self, request):
+        email = request.POST["email"]
+        if User.objects.filter(email=email).exists():
+            return JsonResponse({"error": "email taken"}, status=400)
+        user = User.objects.create(email=email, display_name=request.POST.get("name", ""))
+        return JsonResponse({"id": user.pk, "email": user.email}, status=201)
+
+class App%[1]dUpdateView(View):
+    def post(self, request, pk):
+        user = get_object_or_404(User, pk=pk)
+        user.display_name = request.POST.get("name", user.display_name)
+        user.bio = request.POST.get("bio", user.bio)
+        user.save()
+        return JsonResponse({"email": user.email, "name": user.display_name})
+
+class App%[1]dDeleteView(View):
+    def post(self, request, pk):
+        user = get_object_or_404(User, pk=pk)
+        email = user.email
+        user.delete()
+        return JsonResponse({"deleted": email})
+`
+
+	const serializersFmt = `
+class App%[1]dUserSerializer:
+    def to_representation(self, instance):
+        return {
+            "id": instance.pk,
+            "email": instance.email,
+            "name": instance.display_name,
+            "verified": instance.is_verified,
+            "bio": instance.bio,
+        }
+
+    def validate_email(self, value):
+        if User.objects.filter(email=value).exists():
+            raise ValueError("email already in use")
+        return value
+
+    def validate_display_name(self, value):
+        if len(value) < 2:
+            raise ValueError("display_name too short")
+        return value
+
+class App%[1]dDetailSerializer(App%[1]dUserSerializer):
+    def to_representation(self, instance):
+        data = super().to_representation(instance)
+        data["avatar"] = instance.avatar.url if instance.avatar else None
+        return data
+
+class App%[1]dListSerializer(App%[1]dUserSerializer):
+    def to_representation(self, instance):
+        return {"id": instance.pk, "email": instance.email, "name": instance.display_name}
+
+class App%[1]dCreateSerializer:
+    def validate(self, data):
+        if not data.get("email"):
+            raise ValueError("email required")
+        if User.objects.filter(email=data["email"]).exists():
+            raise ValueError("email taken")
+        return data
+
+    def create(self, validated_data):
+        user = User(**validated_data)
+        user.save()
+        return user
+
+class App%[1]dUpdateSerializer:
+    def update(self, instance, validated_data):
+        instance.display_name = validated_data.get("display_name", instance.display_name)
+        instance.bio = validated_data.get("bio", instance.bio)
+        instance.save()
+        return instance
+
+    def to_representation(self, instance):
+        return {"email": instance.email, "name": instance.display_name}
+`
+
+	const tasksFmt = `
+from celery import shared_task
+
+@shared_task
+def send_welcome_%[1]d(user_id):
+    user = User.objects.get(pk=user_id)
+    send_mail(subject="Welcome", message=f"Hi {user.display_name}", recipient_list=[user.email])
+
+@shared_task
+def send_notification_%[1]d(user_id, message):
+    user = User.objects.get(pk=user_id)
+    if user.is_verified:
+        notify(user.email, message)
+
+@shared_task
+def deactivate_unverified_%[1]d():
+    for user in User.objects.filter(is_verified=False):
+        log(f"deactivating {user.email}")
+        user.is_active = False
+        user.save()
+
+@shared_task
+def send_reset_%[1]d(user_id):
+    user = User.objects.get(pk=user_id)
+    token = generate_token(user.pk)
+    send_mail(subject="Reset", message=f"Reset for {user.email}: /reset/{token}", recipient_list=[user.email])
+
+@shared_task
+def send_verification_%[1]d(user_id):
+    user = User.objects.get(pk=user_id)
+    if not user.is_verified:
+        code = generate_code(user.pk)
+        send_mail(subject="Verify", message=f"Verify {user.email}: /verify/{code}", recipient_list=[user.email])
+
+@shared_task
+def sync_to_crm_%[1]d(user_id):
+    user = User.objects.get(pk=user_id)
+    crm.upsert({"email": user.email, "name": user.display_name, "verified": user.is_verified})
+
+@shared_task
+def cleanup_inactive_%[1]d():
+    for user in User.objects.filter(is_active=False):
+        log(f"removing {user.email}")
+        user.delete()
+`
+
+	const adminFmt = `
+from django.contrib import admin
+from django.utils.html import format_html
+
+@admin.register(User)
+class App%[1]dUserAdmin(admin.ModelAdmin):
+    list_display = ["email", "display_name", "is_verified", "is_active", "created_at"]
+    list_filter = ["is_verified", "is_active", "created_at"]
+    search_fields = ["email", "display_name"]
+    readonly_fields = ["created_at", "updated_at"]
+    ordering = ["-created_at"]
+
+    def get_queryset(self, request):
+        return super().get_queryset(request).select_related()
+
+    def email_link(self, obj):
+        return format_html('<a href="mailto:{}">{}</a>', obj.email, obj.email)
+    email_link.short_description = "Email"
+
+    def verify_users(self, request, queryset):
+        updated = queryset.update(is_verified=True)
+        self.message_user(request, f"{updated} users verified.")
+    verify_users.short_description = "Mark selected users as verified"
+
+    def deactivate_users(self, request, queryset):
+        for user in queryset:
+            log(f"admin deactivated {user.email}")
+        queryset.update(is_active=False)
+    deactivate_users.short_description = "Deactivate selected users"
+
+    actions = ["verify_users", "deactivate_users"]
+
+@admin.register(Organisation)
+class App%[1]dOrgAdmin(admin.ModelAdmin):
+    list_display = ["name", "slug", "owner_email", "created_at"]
+    search_fields = ["name", "slug"]
+    readonly_fields = ["created_at"]
+
+    def owner_email(self, obj):
+        return obj.owner.email
+    owner_email.short_description = "Owner"
+`
+
+	const signalsFmt = `
+from django.db.models.signals import post_save, pre_delete, post_delete
+from django.dispatch import receiver
+
+@receiver(post_save, sender=User)
+def on_created_%[1]d(sender, instance, created, **kwargs):
+    if created:
+        send_welcome_%[1]d.delay(instance.pk)
+        log(f"new user: {instance.email}")
+
+@receiver(post_save, sender=User)
+def on_updated_%[1]d(sender, instance, created, **kwargs):
+    if not created and instance.is_verified:
+        cache.set(f"user:{instance.pk}:email", instance.email)
+
+@receiver(post_save, sender=User)
+def on_verified_%[1]d(sender, instance, created, **kwargs):
+    if not created and instance.is_verified:
+        send_mail("Verified", f"Account {instance.email} verified.", [instance.email])
+
+@receiver(pre_delete, sender=User)
+def on_pre_delete_%[1]d(sender, instance, **kwargs):
+    log(f"about to delete: {instance.email}")
+    cache.delete(f"user:{instance.pk}:email")
+
+@receiver(post_delete, sender=User)
+def on_deleted_%[1]d(sender, instance, **kwargs):
+    log(f"deleted: {instance.email}")
+    audit_log.record("delete", "User", instance.email)
+
+@receiver(post_save, sender=Organisation)
+def on_org_created_%[1]d(sender, instance, created, **kwargs):
+    if created:
+        notify(instance.owner.email, f"Org '{instance.name}' created")
+`
+
+	formats := []struct {
+		suffix string
+		format string
+	}{
+		{"views", viewsFmt},
+		{"serializers", serializersFmt},
+		{"tasks", tasksFmt},
+		{"admin", adminFmt},
+		{"signals", signalsFmt},
+	}
+
+	for i := 0; i < 200; i++ {
+		appDir := filepath.Join(dir, fmt.Sprintf("app%03d", i))
+		if err := os.MkdirAll(appDir, 0o755); err != nil {
+			b.Fatal(err)
+		}
+		for _, f := range formats {
+			content := fmt.Sprintf(f.format, i)
+			path := filepath.Join(appDir, f.suffix+".py")
+			if err := os.WriteFile(path, []byte(content), 0o644); err != nil {
+				b.Fatal(err)
+			}
+		}
+	}
+
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		if _, _, err := Scan(dir, "email"); err != nil {
+			b.Fatal(err)
+		}
+	}
+}

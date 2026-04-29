@@ -57,21 +57,21 @@ def show(post):
 
 func TestRunCheck_RefsFound(t *testing.T) {
 	dir := setupFixture(t)
-	if err := runCheck(dir, "User", "email", ""); err != nil {
+	if err := runCheck(dir, "User", "email", "", ""); err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
 }
 
 func TestRunCheck_NoRefs(t *testing.T) {
 	dir := setupFixture(t)
-	if err := runCheck(dir, "User", "name", ""); err != nil {
+	if err := runCheck(dir, "User", "name", "", ""); err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
 }
 
 func TestRunCheck_UnknownModel(t *testing.T) {
 	dir := setupFixture(t)
-	err := runCheck(dir, "Invoice", "amount", "")
+	err := runCheck(dir, "Invoice", "amount", "", "")
 	if err == nil {
 		t.Fatal("expected error for unknown model")
 	}
@@ -85,7 +85,7 @@ func TestRunCheck_UnknownModel(t *testing.T) {
 
 func TestRunCheck_UnknownField(t *testing.T) {
 	dir := setupFixture(t)
-	err := runCheck(dir, "User", "emial", "")
+	err := runCheck(dir, "User", "emial", "", "")
 	if err == nil {
 		t.Fatal("expected error for unknown field")
 	}
@@ -114,7 +114,7 @@ class User(models.Model):
 		}
 	}
 
-	err := runCheck(dir, "User", "email", "")
+	err := runCheck(dir, "User", "email", "", "")
 	if err == nil {
 		t.Fatal("expected conflict error")
 	}
@@ -130,14 +130,14 @@ class User(models.Model):
 func TestRunCheck_ModelsFile(t *testing.T) {
 	dir := setupFixture(t)
 	modelsFile := filepath.Join(dir, "accounts", "models.py")
-	if err := runCheck(dir, "User", "email", modelsFile); err != nil {
+	if err := runCheck(dir, "User", "email", modelsFile, ""); err != nil {
 		t.Fatalf("unexpected error with --models-file: %v", err)
 	}
 }
 
 func TestRunCheck_NoModelsFile(t *testing.T) {
 	dir := t.TempDir()
-	err := runCheck(dir, "User", "email", "")
+	err := runCheck(dir, "User", "email", "", "")
 	if err == nil {
 		t.Fatal("expected error when no models.py found")
 	}
@@ -150,7 +150,7 @@ func TestRunCheck_NoModelsFile(t *testing.T) {
 // when --models-file points to a non-existent path.
 func TestRunCheck_ReadFileError(t *testing.T) {
 	dir := t.TempDir()
-	err := runCheck(dir, "User", "email", "/nonexistent/path/models.py")
+	err := runCheck(dir, "User", "email", "/nonexistent/path/models.py", "")
 	if err == nil {
 		t.Fatal("expected error when models-file does not exist")
 	}
@@ -165,7 +165,7 @@ func TestRunCheck_NoModelsDetected(t *testing.T) {
 	if err := os.WriteFile(modelsPath, []byte("# no models here\n"), 0o644); err != nil {
 		t.Fatal(err)
 	}
-	err := runCheck(dir, "User", "email", modelsPath)
+	err := runCheck(dir, "User", "email", modelsPath, "")
 	if err == nil {
 		t.Fatal("expected error when no models are detected")
 	}
@@ -177,7 +177,7 @@ func TestRunCheck_NoModelsDetected(t *testing.T) {
 // TestRunCheck_FindModelsFilesWalkError covers the WalkDir error callback in
 // findModelsFiles by passing a non-existent directory (WalkDir fails immediately).
 func TestRunCheck_FindModelsFilesWalkError(t *testing.T) {
-	err := runCheck("/nonexistent/dir/that/does/not/exist", "User", "email", "")
+	err := runCheck("/nonexistent/dir/that/does/not/exist", "User", "email", "", "")
 	if err == nil {
 		t.Fatal("expected error for non-existent directory")
 	}
@@ -200,7 +200,7 @@ class User(models.Model):
 		t.Fatal(err)
 	}
 	// No models.py in the root → should fail with "no models.py found".
-	err := runCheck(dir, "User", "email", "")
+	err := runCheck(dir, "User", "email", "", "")
 	if err == nil {
 		t.Fatal("expected error: models.py in hidden dir should be skipped")
 	}
@@ -231,7 +231,7 @@ class User(models.Model):
 	}
 	t.Cleanup(func() { _ = os.Chmod(unreadable, 0o644) })
 
-	err := runCheck(dir, "User", "email", modelsPath)
+	err := runCheck(dir, "User", "email", modelsPath, "")
 	if err == nil {
 		t.Fatal("expected error when .py file is unreadable")
 	}
@@ -268,7 +268,7 @@ func TestRunCheck_ParseModelsError(t *testing.T) {
 	if err := os.WriteFile(modelsPath, []byte("class Foo: pass"), 0o644); err != nil {
 		t.Fatal(err)
 	}
-	err := runCheck(dir, "Foo", "bar", modelsPath)
+	err := runCheck(dir, "Foo", "bar", modelsPath, "")
 	if err == nil {
 		t.Fatal("expected error from ParseModels injection")
 	}
@@ -302,13 +302,84 @@ class User(models.Model):
 		}
 	}
 
-	err := runCheck(dir, "User", "email", "")
+	err := runCheck(dir, "User", "email", "", "")
 	if err == nil {
 		t.Fatal("expected conflict error")
 	}
 	// The error should still mention "multiple files" even with Rel failing.
 	if !strings.Contains(err.Error(), "multiple files") {
 		t.Errorf("expected conflict error, got: %v", err)
+	}
+}
+
+func setupRailsFixture(t *testing.T) string {
+	t.Helper()
+	dir := t.TempDir()
+	dbDir := filepath.Join(dir, "db")
+	if err := os.MkdirAll(dbDir, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(dbDir, "schema.rb"), []byte(`
+ActiveRecord::Schema[7.0].define do
+  create_table "users", force: :cascade do |t|
+    t.string "email", null: false
+    t.string "name"
+  end
+end
+`), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(dir, "app.rb"), []byte(`
+user.email
+`), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	return dir
+}
+
+func TestRunCheck_Rails_AutoDetect(t *testing.T) {
+	dir := setupRailsFixture(t)
+	if err := runCheck(dir, "User", "email", "", ""); err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+}
+
+func TestRunCheck_Rails_SchemaFile(t *testing.T) {
+	dir := setupRailsFixture(t)
+	schemaFile := filepath.Join(dir, "db", "schema.rb")
+	if err := runCheck(dir, "User", "email", "", schemaFile); err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+}
+
+func TestRunCheck_Rails_ReadError(t *testing.T) {
+	err := runCheck(t.TempDir(), "User", "email", "", "/nonexistent/schema.rb")
+	if err == nil {
+		t.Fatal("expected error for nonexistent schema file")
+	}
+}
+
+func TestRunCheck_Rails_ParseError(t *testing.T) {
+	origParse := parseSchemaRb
+	parseSchemaRb = func(src []byte) ([]parser.Field, error) {
+		return nil, fmt.Errorf("injected schema parse error")
+	}
+	defer func() { parseSchemaRb = origParse }()
+
+	dir := t.TempDir()
+	dbDir := filepath.Join(dir, "db")
+	if err := os.MkdirAll(dbDir, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(dbDir, "schema.rb"), []byte("# schema"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	err := runCheck(dir, "User", "email", "", "")
+	if err == nil {
+		t.Fatal("expected parse error")
+	}
+	if !strings.Contains(err.Error(), "injected schema parse error") {
+		t.Errorf("unexpected error: %v", err)
 	}
 }
 
