@@ -1,4 +1,4 @@
-.PHONY: build test test-coverage check-coverage bench bench-compare clean install static-lint lint-fix install-hooks mod-tidy help
+.PHONY: build test test-e2e build-e2e clean-e2e test-coverage check-coverage bench bench-compare clean install static-lint lint-fix install-hooks mod-tidy help
 
 # Default target
 .DEFAULT_GOAL := help
@@ -35,11 +35,24 @@ test-coverage: ## Run tests with coverage (report only)
 	$(GOCMD) tool cover -html=coverage/coverage.out -o coverage/coverage.html
 	@echo "Coverage report generated: coverage/coverage.html"
 
+build-e2e: ## Build binary for e2e tests
+	$(GOBUILD) -o e2e/$(BINARY_NAME)-e2e-test $(BUILD_DIR)
+
+test-e2e: build-e2e ## Run end-to-end tests
+	@echo "Running e2e tests..."
+	@cd e2e && $(GOTEST) . -v; \
+	EXIT_CODE=$$?; \
+	$(MAKE) -C .. clean-e2e; \
+	exit $$EXIT_CODE
+
+clean-e2e: ## Remove e2e test binary
+	rm -f e2e/$(BINARY_NAME)-e2e-test
+
 check-coverage: ## Run tests with coverage and enforce minimum threshold
 	@echo "Running tests with coverage (threshold: $(COVERAGE_THRESHOLD)%)..."
 	@coverage_file=$$(mktemp); \
 	trap 'rm -f "$$coverage_file"' EXIT; \
-	$(GOTEST) ./... -coverprofile="$$coverage_file"; \
+	$(GOTEST) $$(go list ./... | grep -v /e2e) -coverprofile="$$coverage_file"; \
 	total=$$($(GOCMD) tool cover -func="$$coverage_file" | grep '^total' | awk '{print $$3}' | tr -d '%'); \
 	echo "Total coverage: $${total}%"; \
 	if ! awk "BEGIN { exit !($$total >= $(COVERAGE_THRESHOLD)) }"; then \
