@@ -1,6 +1,7 @@
 package scanner
 
 import (
+	"bytes"
 	"context"
 	"io/fs"
 	"os"
@@ -97,14 +98,27 @@ func dedupeByLine(refs []Reference) []Reference {
 	return out
 }
 
+func lineAt(src []byte, row int) string {
+	lines := bytes.Split(src, []byte("\n"))
+	if row < len(lines) {
+		return string(lines[row])
+	}
+	return ""
+}
+
 func walkNode(node *sitter.Node, src []byte, fieldName, file string, refs *[]Reference) {
 	if node.Type() == "attribute" {
 		attr := node.ChildByFieldName("attribute")
 		if attr != nil && attr.Content(src) == fieldName {
+			attrRow := int(attr.StartPoint().Row)
+			text := node.Content(src)
+			if int(node.StartPoint().Row) != attrRow {
+				text = strings.TrimSpace(lineAt(src, attrRow))
+			}
 			*refs = append(*refs, Reference{
 				File: file,
-				Line: int(node.StartPoint().Row) + 1,
-				Text: node.Content(src),
+				Line: attrRow + 1,
+				Text: text,
 			})
 			// The object subtree cannot itself end in the same attribute name
 			// unless it is a coincidental deeper match, so keep recursing to
