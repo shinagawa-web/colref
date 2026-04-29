@@ -472,6 +472,13 @@ func TestScan_GetAttr_NotDetected(t *testing.T) {
 	}
 }
 
+func TestLineAt_OutOfBounds(t *testing.T) {
+	lines := [][]byte{[]byte("line0"), []byte("line1")}
+	if got := lineAt(lines, 5); got != "" {
+		t.Errorf("want empty string for out-of-bounds row, got %q", got)
+	}
+}
+
 func TestScan_FExpression_NotDetected(t *testing.T) {
 	dir := t.TempDir()
 	// v0.1 limitation: F('email') passes the column as a string.
