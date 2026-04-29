@@ -1,0 +1,13 @@
+#!/bin/sh
+# Pre-push hook: runs all checks before pushing.
+# Bypass with: git push --no-verify
+
+set -e
+
+echo "==> Running static lint..."
+make static-lint
+
+echo "==> Running tests with coverage check..."
+make check-coverage
+
+echo "==> All checks passed."

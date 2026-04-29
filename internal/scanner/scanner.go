@@ -1,6 +1,7 @@
 package scanner
 
 import (
+	"bytes"
 	"context"
 	"io/fs"
 	"os"
@@ -38,6 +39,16 @@ var SkipDirs = map[string]bool{
 	"node_modules": true,
 }
 
+// parseCtxFn is the function used to parse Python source into a tree.
+// It is a var so tests can inject a failing version to cover error paths.
+var parseCtxFn = func(p *sitter.Parser, ctx context.Context, oldTree *sitter.Tree, src []byte) (*sitter.Tree, error) {
+	return p.ParseCtx(ctx, oldTree, src)
+}
+
+// filepathRelFn is the function used to compute relative paths.
+// It is a var so tests can inject a failing version to cover error paths.
+var filepathRelFn = filepath.Rel
+
 // Scan walks dir and returns every attribute-access node whose attribute name
 // equals fieldName, along with the total number of .py files examined.
 func Scan(dir, fieldName string) ([]Reference, int, error) {
@@ -68,17 +79,18 @@ func Scan(dir, fieldName string) ([]Reference, int, error) {
 
 		p := sitter.NewParser()
 		p.SetLanguage(lang)
-		tree, err := p.ParseCtx(context.Background(), nil, src)
+		tree, err := parseCtxFn(p, context.Background(), nil, src)
 		if err != nil {
 			return err
 		}
 
-		rel, err := filepath.Rel(dir, path)
+		rel, err := filepathRelFn(dir, path)
 		if err != nil {
 			rel = filepath.Clean(path)
 		}
+		lines := bytes.Split(src, []byte("\n"))
 		var fileRefs []Reference
-		walkNode(tree.RootNode(), src, fieldName, rel, &fileRefs)
+		walkNode(tree.RootNode(), src, lines, fieldName, rel, &fileRefs)
 		refs = append(refs, dedupeByLine(fileRefs)...)
 		return nil
 	})
@@ -99,14 +111,26 @@ func dedupeByLine(refs []Reference) []Reference {
 	return out
 }
 
-func walkNode(node *sitter.Node, src []byte, fieldName, file string, refs *[]Reference) {
+func lineAt(lines [][]byte, row int) string {
+	if row < len(lines) {
+		return string(lines[row])
+	}
+	return ""
+}
+
+func walkNode(node *sitter.Node, src []byte, lines [][]byte, fieldName, file string, refs *[]Reference) {
 	if node.Type() == "attribute" {
 		attr := node.ChildByFieldName("attribute")
 		if attr != nil && attr.Content(src) == fieldName {
+			attrRow := int(attr.StartPoint().Row)
+			text := node.Content(src)
+			if int(node.StartPoint().Row) != attrRow {
+				text = strings.TrimSpace(lineAt(lines, attrRow))
+			}
 			*refs = append(*refs, Reference{
 				File: file,
-				Line: int(node.StartPoint().Row) + 1,
-				Text: node.Content(src),
+				Line: attrRow + 1,
+				Text: text,
 			})
 			// The object subtree cannot itself end in the same attribute name
 			// unless it is a coincidental deeper match, so keep recursing to
@@ -114,6 +138,6 @@ func walkNode(node *sitter.Node, src []byte, fieldName, file string, refs *[]Ref
 		}
 	}
 	for i := 0; i < int(node.ChildCount()); i++ {
-		walkNode(node.Child(i), src, fieldName, file, refs)
+		walkNode(node.Child(i), src, lines, fieldName, file, refs)
 	}
 }
