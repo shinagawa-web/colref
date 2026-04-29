@@ -7,10 +7,12 @@ import (
 	"github.com/spf13/cobra"
 )
 
+var exit = os.Exit
+
 func main() {
 	if err := rootCmd.Execute(); err != nil {
 		fmt.Fprintln(os.Stderr, err)
-		os.Exit(1)
+		exit(1)
 	}
 }
 

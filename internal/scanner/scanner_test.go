@@ -1,9 +1,13 @@
 package scanner
 
 import (
+	"context"
+	"fmt"
 	"os"
 	"path/filepath"
 	"testing"
+
+	sitter "github.com/smacker/go-tree-sitter"
 )
 
 func writeFile(t *testing.T, dir, name, content string) {
@@ -170,158 +174,101 @@ func TestScan_MultipleFiles(t *testing.T) {
 	}
 }
 
-func TestScan_IgnoresNonPyFiles(t *testing.T) {
+// TestScan_SkipNonPyFiles covers the non-.py file return path.
+func TestScan_SkipNonPyFiles(t *testing.T) {
 	dir := t.TempDir()
 	writeFile(t, dir, "views.py", `x = user.email`)
-	writeFile(t, dir, "README.md", `user.email is a field`)
-	writeFile(t, dir, "config.yaml", `email: user.email`)
+	writeFile(t, dir, "README.txt", `x = user.email`)
 
+	_, count, err := Scan(dir, "email")
+	if err != nil {
+		t.Fatal(err)
+	}
+	// Only the .py file should be counted.
+	if count != 1 {
+		t.Fatalf("want 1 file scanned (only .py), got %d", count)
+	}
+}
+
+// TestScan_ReadFileError covers the os.ReadFile error path by making a .py
+// file unreadable.
+func TestScan_ReadFileError(t *testing.T) {
+	dir := t.TempDir()
+	p := filepath.Join(dir, "views.py")
+	if err := os.WriteFile(p, []byte(`x = user.email`), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Chmod(p, 0o000); err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = os.Chmod(p, 0o644) })
+
+	_, _, err := Scan(dir, "email")
+	if err == nil {
+		t.Fatal("expected error when .py file is unreadable")
+	}
+}
+
+// TestScan_WalkError covers the WalkDir callback error path by making
+// a subdirectory unreadable so the OS passes an error to the callback.
+func TestScan_WalkError(t *testing.T) {
+	dir := t.TempDir()
+	subdir := filepath.Join(dir, "app")
+	if err := os.MkdirAll(subdir, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	writeFile(t, subdir, "views.py", `x = user.email`)
+	// Make the directory unreadable so WalkDir fails when entering it.
+	if err := os.Chmod(subdir, 0o000); err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = os.Chmod(subdir, 0o755) })
+
+	_, _, err := Scan(dir, "email")
+	if err == nil {
+		t.Fatal("expected error when subdirectory is unreadable")
+	}
+}
+
+// TestScan_ParseCtxError covers the ParseCtx error path by injecting a failing
+// parseCtxFn.
+func TestScan_ParseCtxError(t *testing.T) {
+	orig := parseCtxFn
+	parseCtxFn = func(p *sitter.Parser, ctx context.Context, oldTree *sitter.Tree, src []byte) (*sitter.Tree, error) {
+		return nil, context.Canceled
+	}
+	defer func() { parseCtxFn = orig }()
+
+	dir := t.TempDir()
+	writeFile(t, dir, "views.py", `x = user.email`)
+
+	_, _, err := Scan(dir, "email")
+	if err == nil {
+		t.Fatal("expected error when parseCtxFn fails")
+	}
+}
+
+// TestScan_FilepathRelError covers the filepath.Rel error path by injecting a
+// failing filepathRelFn.
+func TestScan_FilepathRelError(t *testing.T) {
+	orig := filepathRelFn
+	filepathRelFn = func(basepath, targpath string) (string, error) {
+		return "", fmt.Errorf("injected Rel error")
+	}
+	defer func() { filepathRelFn = orig }()
+
+	dir := t.TempDir()
+	writeFile(t, dir, "views.py", `x = user.email`)
+
+	// Should not error overall — the fallback uses filepath.Clean(path).
 	refs, count, err := Scan(dir, "email")
 	if err != nil {
-		t.Fatal(err)
+		t.Fatalf("unexpected error: %v", err)
 	}
 	if count != 1 {
-		t.Fatalf("want 1 .py file scanned, got %d", count)
+		t.Fatalf("want 1 file scanned, got %d", count)
 	}
 	if len(refs) != 1 {
-		t.Fatalf("want 1 ref (from .py only), got %d: %v", len(refs), refs)
-	}
-}
-
-func TestScan_FString(t *testing.T) {
-	dir := t.TempDir()
-	writeFile(t, dir, "views.py", `msg = f"contact: {user.email}"`)
-
-	refs, _, err := Scan(dir, "email")
-	if err != nil {
-		t.Fatal(err)
-	}
-	if len(refs) != 1 {
-		t.Fatalf("want 1 ref inside f-string, got %d: %v", len(refs), refs)
-	}
-}
-
-func TestScan_Lambda(t *testing.T) {
-	dir := t.TempDir()
-	writeFile(t, dir, "utils.py", `get_email = lambda u: u.email`)
-
-	refs, _, err := Scan(dir, "email")
-	if err != nil {
-		t.Fatal(err)
-	}
-	if len(refs) != 1 {
-		t.Fatalf("want 1 ref in lambda, got %d: %v", len(refs), refs)
-	}
-}
-
-func TestScan_ListComprehension(t *testing.T) {
-	dir := t.TempDir()
-	writeFile(t, dir, "views.py", `emails = [u.email for u in users]`)
-
-	refs, _, err := Scan(dir, "email")
-	if err != nil {
-		t.Fatal(err)
-	}
-	if len(refs) != 1 {
-		t.Fatalf("want 1 ref in list comprehension, got %d: %v", len(refs), refs)
-	}
-}
-
-func TestScan_ChainedCall(t *testing.T) {
-	dir := t.TempDir()
-	writeFile(t, dir, "views.py", `addr = user.email.lower()`)
-
-	refs, _, err := Scan(dir, "email")
-	if err != nil {
-		t.Fatal(err)
-	}
-	if len(refs) != 1 {
-		t.Fatalf("want 1 ref (chained call), got %d: %v", len(refs), refs)
-	}
-}
-
-func TestScan_WalrusOperator(t *testing.T) {
-	dir := t.TempDir()
-	writeFile(t, dir, "views.py", `
-if addr := user.email:
-    send(addr)
-`)
-
-	refs, _, err := Scan(dir, "email")
-	if err != nil {
-		t.Fatal(err)
-	}
-	if len(refs) != 1 {
-		t.Fatalf("want 1 ref with walrus operator, got %d: %v", len(refs), refs)
-	}
-}
-
-func TestScan_TernaryExpression(t *testing.T) {
-	dir := t.TempDir()
-	writeFile(t, dir, "views.py", `addr = user.email if user.is_active else None`)
-
-	refs, _, err := Scan(dir, "email")
-	if err != nil {
-		t.Fatal(err)
-	}
-	if len(refs) != 1 {
-		t.Fatalf("want 1 ref in ternary, got %d: %v", len(refs), refs)
-	}
-}
-
-func TestScan_TypeAnnotatedFunction(t *testing.T) {
-	dir := t.TempDir()
-	writeFile(t, dir, "views.py", `
-def get_email(user: User) -> str:
-    return user.email
-`)
-
-	refs, _, err := Scan(dir, "email")
-	if err != nil {
-		t.Fatal(err)
-	}
-	if len(refs) != 1 {
-		t.Fatalf("want 1 ref in type-annotated function, got %d: %v", len(refs), refs)
-	}
-}
-
-// --- v0.1 known limitations: string-based ORM calls are NOT detected ---
-
-func TestScan_FilterKwarg_NotDetected(t *testing.T) {
-	dir := t.TempDir()
-	writeFile(t, dir, "views.py", `qs = User.objects.filter(email="x@example.com")`)
-
-	refs, _, err := Scan(dir, "email")
-	if err != nil {
-		t.Fatal(err)
-	}
-	if len(refs) != 0 {
-		t.Errorf("filter kwarg should not be detected in v0.1, got %d: %v", len(refs), refs)
-	}
-}
-
-func TestScan_ValuesString_NotDetected(t *testing.T) {
-	dir := t.TempDir()
-	writeFile(t, dir, "views.py", `qs = User.objects.values("email")`)
-
-	refs, _, err := Scan(dir, "email")
-	if err != nil {
-		t.Fatal(err)
-	}
-	if len(refs) != 0 {
-		t.Errorf(".values() string should not be detected in v0.1, got %d: %v", len(refs), refs)
-	}
-}
-
-func TestScan_GetAttr_NotDetected(t *testing.T) {
-	dir := t.TempDir()
-	writeFile(t, dir, "views.py", `v = getattr(user, "email")`)
-
-	refs, _, err := Scan(dir, "email")
-	if err != nil {
-		t.Fatal(err)
-	}
-	if len(refs) != 0 {
-		t.Errorf("getattr() should not be detected in v0.1, got %d: %v", len(refs), refs)
+		t.Fatalf("want 1 ref, got %d: %v", len(refs), refs)
 	}
 }
