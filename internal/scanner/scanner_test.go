@@ -272,3 +272,223 @@ func TestScan_FilepathRelError(t *testing.T) {
 		t.Fatalf("want 1 ref, got %d: %v", len(refs), refs)
 	}
 }
+
+func TestScan_MultiLineChain_LineNumber(t *testing.T) {
+	dir := t.TempDir()
+	// .email is on line 3, not line 1 where the chain starts.
+	writeFile(t, dir, "views.py", `result = (
+    obj.get()
+    .email
+)`)
+
+	refs, _, err := Scan(dir, "email")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(refs) != 1 {
+		t.Fatalf("want 1 ref, got %d: %v", len(refs), refs)
+	}
+	if refs[0].Line != 3 {
+		t.Errorf("want line 3 (where .email appears), got %d", refs[0].Line)
+	}
+	if refs[0].Text != ".email" {
+		t.Errorf("want text %q, got %q", ".email", refs[0].Text)
+	}
+}
+
+// --- attribute-access patterns that must be detected ---
+
+func TestScan_FString(t *testing.T) {
+	dir := t.TempDir()
+	writeFile(t, dir, "views.py", `msg = f"contact: {user.email}"`)
+
+	refs, _, err := Scan(dir, "email")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(refs) != 1 {
+		t.Fatalf("want 1 ref inside f-string, got %d: %v", len(refs), refs)
+	}
+}
+
+func TestScan_Lambda(t *testing.T) {
+	dir := t.TempDir()
+	writeFile(t, dir, "utils.py", `get_email = lambda u: u.email`)
+
+	refs, _, err := Scan(dir, "email")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(refs) != 1 {
+		t.Fatalf("want 1 ref in lambda, got %d: %v", len(refs), refs)
+	}
+}
+
+func TestScan_ListComprehension(t *testing.T) {
+	dir := t.TempDir()
+	writeFile(t, dir, "views.py", `emails = [u.email for u in users]`)
+
+	refs, _, err := Scan(dir, "email")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(refs) != 1 {
+		t.Fatalf("want 1 ref in list comprehension, got %d: %v", len(refs), refs)
+	}
+}
+
+func TestScan_ChainedCall(t *testing.T) {
+	dir := t.TempDir()
+	writeFile(t, dir, "views.py", `addr = user.email.lower()`)
+
+	refs, _, err := Scan(dir, "email")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(refs) != 1 {
+		t.Fatalf("want 1 ref (chained call), got %d: %v", len(refs), refs)
+	}
+}
+
+func TestScan_SelfReference(t *testing.T) {
+	dir := t.TempDir()
+	writeFile(t, dir, "models.py", `
+class User:
+    def clean(self):
+        self.email = self.email.strip()
+`)
+
+	refs, _, err := Scan(dir, "email")
+	if err != nil {
+		t.Fatal(err)
+	}
+	// Two attribute accesses on same line → deduplicated to 1.
+	if len(refs) != 1 {
+		t.Fatalf("want 1 ref (self, deduped), got %d: %v", len(refs), refs)
+	}
+}
+
+func TestScan_WalrusOperator(t *testing.T) {
+	dir := t.TempDir()
+	writeFile(t, dir, "views.py", `
+if addr := user.email:
+    send(addr)
+`)
+
+	refs, _, err := Scan(dir, "email")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(refs) != 1 {
+		t.Fatalf("want 1 ref with walrus operator, got %d: %v", len(refs), refs)
+	}
+}
+
+func TestScan_TernaryExpression(t *testing.T) {
+	dir := t.TempDir()
+	writeFile(t, dir, "views.py", `addr = user.email if user.is_active else None`)
+
+	refs, _, err := Scan(dir, "email")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(refs) != 1 {
+		t.Fatalf("want 1 ref in ternary, got %d: %v", len(refs), refs)
+	}
+}
+
+func TestScan_TypeAnnotatedFunction(t *testing.T) {
+	dir := t.TempDir()
+	writeFile(t, dir, "views.py", `
+def get_email(user: User) -> str:
+    return user.email
+`)
+
+	refs, _, err := Scan(dir, "email")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(refs) != 1 {
+		t.Fatalf("want 1 ref in type-annotated function, got %d: %v", len(refs), refs)
+	}
+}
+
+// --- v0.1 known limitations: string-based ORM calls are NOT detected ---
+// These tests document the current scope boundary described in the README.
+
+func TestScan_FilterKwarg_NotDetected(t *testing.T) {
+	dir := t.TempDir()
+	// v0.1 limitation: keyword argument in ORM filter is a string key, not attribute access.
+	writeFile(t, dir, "views.py", `qs = User.objects.filter(email="x@example.com")`)
+
+	refs, _, err := Scan(dir, "email")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(refs) != 0 {
+		t.Errorf("filter kwarg should not be detected in v0.1, got %d: %v", len(refs), refs)
+	}
+}
+
+func TestScan_ValuesListString_NotDetected(t *testing.T) {
+	dir := t.TempDir()
+	// v0.1 limitation: string argument to .values_list() is not attribute access.
+	writeFile(t, dir, "views.py", `qs = User.objects.values_list("email", flat=True)`)
+
+	refs, _, err := Scan(dir, "email")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(refs) != 0 {
+		t.Errorf(".values_list() string should not be detected in v0.1, got %d: %v", len(refs), refs)
+	}
+}
+
+func TestScan_QObject_NotDetected(t *testing.T) {
+	dir := t.TempDir()
+	// v0.1 limitation: Q(email=...) passes the column as a keyword argument string.
+	writeFile(t, dir, "views.py", `from django.db.models import Q; qs = User.objects.filter(Q(email="x"))`)
+
+	refs, _, err := Scan(dir, "email")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(refs) != 0 {
+		t.Errorf("Q() kwarg should not be detected in v0.1, got %d: %v", len(refs), refs)
+	}
+}
+
+func TestScan_GetAttr_NotDetected(t *testing.T) {
+	dir := t.TempDir()
+	// v0.1 limitation: getattr() takes the field name as a string.
+	writeFile(t, dir, "views.py", `v = getattr(user, "email")`)
+
+	refs, _, err := Scan(dir, "email")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(refs) != 0 {
+		t.Errorf("getattr() should not be detected in v0.1, got %d: %v", len(refs), refs)
+	}
+}
+
+func TestLineAt_OutOfBounds(t *testing.T) {
+	lines := [][]byte{[]byte("line0"), []byte("line1")}
+	if got := lineAt(lines, 5); got != "" {
+		t.Errorf("want empty string for out-of-bounds row, got %q", got)
+	}
+}
+
+func TestScan_FExpression_NotDetected(t *testing.T) {
+	dir := t.TempDir()
+	// v0.1 limitation: F('email') passes the column as a string.
+	writeFile(t, dir, "views.py", `from django.db.models import F; User.objects.update(email=F("email"))`)
+
+	refs, _, err := Scan(dir, "email")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(refs) != 0 {
+		t.Errorf("F() expression should not be detected in v0.1, got %d: %v", len(refs), refs)
+	}
+}
