@@ -277,3 +277,19 @@ class MyModel(models.Model):
 		t.Error("expected 'config' (SomeUtils.VALUE) NOT to be found as a Django field")
 	}
 }
+
+func TestDjangoParser_ParseSchema(t *testing.T) {
+	src := []byte(`
+from django.db import models
+
+class User(models.Model):
+    email = models.EmailField()
+`)
+	fields, err := DjangoParser{}.ParseSchema(src)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if len(fields) != 1 || fields[0].Name != "email" {
+		t.Errorf("unexpected fields: %v", fields)
+	}
+}
