@@ -43,6 +43,7 @@ func TestE2E_Django(t *testing.T) {
 		}
 		assertContains(t, out, "References found for User.email")
 		assertContains(t, out, "accounts/views.py")
+		assertNotContains(t, out, "No references found")
 	})
 
 	t.Run("NoRefs", func(t *testing.T) {
@@ -52,6 +53,7 @@ func TestE2E_Django(t *testing.T) {
 		}
 		assertContains(t, out, "No references found for User.name")
 		assertContains(t, out, "Verify manually before deleting.")
+		assertNotContains(t, out, "References found for")
 	})
 
 	t.Run("UnknownModel", func(t *testing.T) {
