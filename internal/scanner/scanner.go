@@ -10,6 +10,7 @@ import (
 
 	sitter "github.com/smacker/go-tree-sitter"
 	"github.com/smacker/go-tree-sitter/python"
+	"github.com/smacker/go-tree-sitter/ruby"
 
 	"github.com/shinagawa-web/colref/internal/orm"
 )
@@ -27,6 +28,23 @@ func (PythonScanner) Scan(dir, fieldName string) ([]orm.Reference, int, error) {
 
 // SkipDirs implements orm.ReferenceScanner, returning a defensive copy.
 func (PythonScanner) SkipDirs() map[string]bool {
+	copy := make(map[string]bool, len(SkipDirs))
+	for k, v := range SkipDirs {
+		copy[k] = v
+	}
+	return copy
+}
+
+// RubyScanner implements orm.ReferenceScanner for Ruby codebases.
+type RubyScanner struct{}
+
+// Scan implements orm.ReferenceScanner.
+func (RubyScanner) Scan(dir, fieldName string) ([]orm.Reference, int, error) {
+	return ScanRuby(dir, fieldName)
+}
+
+// SkipDirs implements orm.ReferenceScanner, returning a defensive copy.
+func (RubyScanner) SkipDirs() map[string]bool {
 	copy := make(map[string]bool, len(SkipDirs))
 	for k, v := range SkipDirs {
 		copy[k] = v
@@ -56,7 +74,18 @@ var filepathRelFn = filepath.Rel
 // Scan walks dir and returns every attribute-access node whose attribute name
 // equals fieldName, along with the total number of .py files examined.
 func Scan(dir, fieldName string) ([]Reference, int, error) {
-	lang := python.GetLanguage()
+	return scanFiles(dir, fieldName, ".py", python.GetLanguage(), walkNode)
+}
+
+// ScanRuby walks dir and returns every method-call node whose method name
+// equals fieldName, along with the total number of .rb files examined.
+func ScanRuby(dir, fieldName string) ([]Reference, int, error) {
+	return scanFiles(dir, fieldName, ".rb", ruby.GetLanguage(), walkNodeRuby)
+}
+
+type walkFn func(node *sitter.Node, src []byte, lines [][]byte, fieldName, file string, refs *[]Reference)
+
+func scanFiles(dir, fieldName, ext string, lang *sitter.Language, walk walkFn) ([]Reference, int, error) {
 	var refs []Reference
 	filesScanned := 0
 
@@ -71,7 +100,7 @@ func Scan(dir, fieldName string) ([]Reference, int, error) {
 			}
 			return nil
 		}
-		if !strings.HasSuffix(path, ".py") {
+		if !strings.HasSuffix(path, ext) {
 			return nil
 		}
 		filesScanned++
@@ -94,7 +123,7 @@ func Scan(dir, fieldName string) ([]Reference, int, error) {
 		}
 		lines := bytes.Split(src, []byte("\n"))
 		var fileRefs []Reference
-		walkNode(tree.RootNode(), src, lines, fieldName, rel, &fileRefs)
+		walk(tree.RootNode(), src, lines, fieldName, rel, &fileRefs)
 		refs = append(refs, dedupeByLine(fileRefs)...)
 		return nil
 	})
@@ -120,6 +149,29 @@ func lineAt(lines [][]byte, row int) string {
 		return string(lines[row])
 	}
 	return ""
+}
+
+// walkNodeRuby matches Ruby method calls (call nodes) where the method name
+// equals fieldName, e.g. user.email → matches "email".
+func walkNodeRuby(node *sitter.Node, src []byte, lines [][]byte, fieldName, file string, refs *[]Reference) {
+	if node.Type() == "call" {
+		method := node.ChildByFieldName("method")
+		if method != nil && method.Content(src) == fieldName {
+			methodRow := int(method.StartPoint().Row)
+			text := node.Content(src)
+			if int(node.StartPoint().Row) != methodRow {
+				text = strings.TrimSpace(lineAt(lines, methodRow))
+			}
+			*refs = append(*refs, Reference{
+				File: file,
+				Line: methodRow + 1,
+				Text: text,
+			})
+		}
+	}
+	for i := 0; i < int(node.ChildCount()); i++ {
+		walkNodeRuby(node.Child(i), src, lines, fieldName, file, refs)
+	}
 }
 
 func walkNode(node *sitter.Node, src []byte, lines [][]byte, fieldName, file string, refs *[]Reference) {

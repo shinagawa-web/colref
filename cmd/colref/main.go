@@ -24,9 +24,9 @@ var rootCmd = &cobra.Command{
 }
 
 var (
-	flagModel      string
-	flagField      string
-	flagModelsFile string
+	flagModel string
+	flagField string
+	flagOrm   string
 )
 
 var checkCmd = &cobra.Command{
@@ -38,16 +38,17 @@ var checkCmd = &cobra.Command{
 		if len(args) == 1 {
 			dir = args[0]
 		}
-		return runCheck(dir, flagModel, flagField, flagModelsFile)
+		return runCheck(dir, flagModel, flagField, flagOrm)
 	},
 }
 
 func init() {
 	checkCmd.Flags().StringVar(&flagModel, "model", "", "Model name (e.g. User)")
 	checkCmd.Flags().StringVar(&flagField, "field", "", "Field name (e.g. email)")
-	checkCmd.Flags().StringVar(&flagModelsFile, "models-file", "", "Path to models.py (auto-detected if omitted)")
+	checkCmd.Flags().StringVar(&flagOrm, "orm", "", "ORM type: django, rails")
 	_ = checkCmd.MarkFlagRequired("model")
 	_ = checkCmd.MarkFlagRequired("field")
+	_ = checkCmd.MarkFlagRequired("orm")
 
 	rootCmd.AddCommand(checkCmd)
 }

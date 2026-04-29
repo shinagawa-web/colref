@@ -11,10 +11,16 @@ colref scans your codebase with an AST parser, skips comments and string literal
 ## Usage
 
 ```
-colref check --model User --field email [path]
+colref check --orm <orm> --model <Model> --field <field> [path]
 ```
 
-`path` is the directory to scan (default: current directory).
+`path` is the project root to scan (default: current directory).
+
+### Django example
+
+```
+colref check --orm django --model User --field email
+```
 
 Output:
 
@@ -39,15 +45,23 @@ References found for User.email
   notifications/tasks.py:12    instance.email
 ```
 
+### Rails example
+
+```
+colref check --orm rails --model User --field email
+```
+
+colref reads `db/schema.rb` from the project root, infers model names from table names (`users` → `User`), and scans `.rb` files for attribute-access references.
+
 ### Flags
 
 | Flag | Description |
 |---|---|
+| `--orm` | ORM type: `django`, `rails` (required) |
 | `--model` | Model name to look up (required) |
 | `--field` | Field name to search for (required) |
-| `--models-file` | Path to a specific `models.py` (see below) |
 
-### models.py auto-detection
+### Django — models.py detection
 
 colref locates `models.py` automatically by walking the target directory. All `models.py` files found are parsed and merged.
 
@@ -57,13 +71,7 @@ If the same model name appears in more than one `models.py`, colref exits with a
 model "User" found in multiple files:
   accounts/models.py
   legacy/models.py
-Use --models-file to specify which one.
-```
-
-Use `--models-file` to point to a specific file and resolve the ambiguity:
-
-```
-colref check --model User --field email --models-file accounts/models.py
+Use --model to disambiguate.
 ```
 
 ### Skipped directories
@@ -82,7 +90,7 @@ Binaries for Linux and macOS will be available on the [releases page](https://gi
 
 ## How it works
 
-1. Reads your ORM model file to extract the field list
+1. Reads your ORM schema source to extract the field list
 2. Walks the codebase and parses each file into an AST
 3. Reports every location where the field name appears as an attribute access (e.g. `user.email`)
 
@@ -102,7 +110,7 @@ Fields are declared explicitly in `models.py`, which makes parsing straightforwa
 
 ### v0.2 — Rails
 
-Schema is consolidated in `schema.rb`. ActiveRecord models follow predictable naming conventions (`User` → `users`), though custom table names need handling.
+Schema is consolidated in `db/schema.rb`. ActiveRecord models follow predictable naming conventions (`User` → `users`), though custom table names need handling.
 
 ### v0.3 — Laravel
 
