@@ -28,7 +28,6 @@ if [[ -z "$BENCHSTAT" || ! -x "$BENCHSTAT" ]]; then
     exit 1
 fi
 
-PKGS=$(go list ./...)
 ORIGINAL_REF=$(git symbolic-ref --short HEAD 2>/dev/null || git rev-parse HEAD)
 
 NEW_BENCH=$(mktemp "${TMPDIR:-/tmp}/colref-bench.XXXXXX")
@@ -46,7 +45,7 @@ cleanup() {
 trap cleanup EXIT
 
 echo "==> Running benchmarks on $ORIGINAL_REF..."
-go test -bench=. -benchmem $PKGS -run='^$' > "$NEW_BENCH"
+go test -bench=. -benchmem ./... -run='^$' > "$NEW_BENCH"
 
 echo "==> Fetching origin/main for baseline..."
 if ! git fetch --quiet origin main; then
@@ -60,7 +59,7 @@ CHECKED_OUT_MAIN=true
 go mod download 2>/dev/null
 
 echo "==> Running benchmarks on origin/main..."
-go test -bench=. -benchmem $PKGS -run='^$' > "$OLD_BENCH"
+go test -bench=. -benchmem ./... -run='^$' > "$OLD_BENCH"
 
 echo "==> Returning to $ORIGINAL_REF..."
 git checkout --quiet "$ORIGINAL_REF"

@@ -21,7 +21,7 @@ awk '
   /^goos:|^goarch:|^cpu:/ { print; next }
   /^pkg:/ {
     current_pkg = $0
-    if ($0 ~ /\/cmd$/) { in_cmd_pkg = 1; print } else { in_cmd_pkg = 0 }
+    if ($0 ~ /\/cmd\//) { in_cmd_pkg = 1; print } else { in_cmd_pkg = 0 }
     next
   }
   /│[[:space:]]*sec\/op[[:space:]]*│/ { current_metric = "time"; next }

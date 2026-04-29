@@ -26,7 +26,7 @@ build: ## Build the binary
 
 test: ## Run unit tests
 	@echo "Running tests..."
-	$(GOTEST) ./... -v
+	$(GOTEST) -race ./... -v
 
 test-coverage: ## Run tests with coverage (report only)
 	@echo "Running tests with coverage..."
@@ -37,14 +37,15 @@ test-coverage: ## Run tests with coverage (report only)
 
 check-coverage: ## Run tests with coverage and enforce minimum threshold
 	@echo "Running tests with coverage (threshold: $(COVERAGE_THRESHOLD)%)..."
-	@mkdir -p coverage
-	$(GOTEST) ./... -coverprofile=coverage/coverage.out
-	@total=$$($(GOCMD) tool cover -func=coverage/coverage.out | grep '^total' | awk '{print $$3}' | tr -d '%'); \
+	@coverage_file=$$(mktemp); \
+	trap 'rm -f "$$coverage_file"' EXIT; \
+	$(GOTEST) ./... -coverprofile="$$coverage_file"; \
+	total=$$($(GOCMD) tool cover -func="$$coverage_file" | grep '^total' | awk '{print $$3}' | tr -d '%'); \
 	echo "Total coverage: $${total}%"; \
 	if ! awk "BEGIN { exit !($$total >= $(COVERAGE_THRESHOLD)) }"; then \
 		echo "FAIL: coverage $${total}% is below threshold $(COVERAGE_THRESHOLD)%"; exit 1; \
-	fi
-	@echo "Coverage OK."
+	fi; \
+	echo "Coverage OK."
 
 bench: ## Run benchmark tests
 	@echo "Running benchmark tests..."
