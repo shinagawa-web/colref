@@ -76,8 +76,9 @@ func Scan(dir, fieldName string) ([]Reference, int, error) {
 		if err != nil {
 			rel = filepath.Clean(path)
 		}
+		lines := bytes.Split(src, []byte("\n"))
 		var fileRefs []Reference
-		walkNode(tree.RootNode(), src, fieldName, rel, &fileRefs)
+		walkNode(tree.RootNode(), src, lines, fieldName, rel, &fileRefs)
 		refs = append(refs, dedupeByLine(fileRefs)...)
 		return nil
 	})
@@ -98,22 +99,21 @@ func dedupeByLine(refs []Reference) []Reference {
 	return out
 }
 
-func lineAt(src []byte, row int) string {
-	lines := bytes.Split(src, []byte("\n"))
+func lineAt(lines [][]byte, row int) string {
 	if row < len(lines) {
 		return string(lines[row])
 	}
 	return ""
 }
 
-func walkNode(node *sitter.Node, src []byte, fieldName, file string, refs *[]Reference) {
+func walkNode(node *sitter.Node, src []byte, lines [][]byte, fieldName, file string, refs *[]Reference) {
 	if node.Type() == "attribute" {
 		attr := node.ChildByFieldName("attribute")
 		if attr != nil && attr.Content(src) == fieldName {
 			attrRow := int(attr.StartPoint().Row)
 			text := node.Content(src)
 			if int(node.StartPoint().Row) != attrRow {
-				text = strings.TrimSpace(lineAt(src, attrRow))
+				text = strings.TrimSpace(lineAt(lines, attrRow))
 			}
 			*refs = append(*refs, Reference{
 				File: file,
@@ -126,6 +126,6 @@ func walkNode(node *sitter.Node, src []byte, fieldName, file string, refs *[]Ref
 		}
 	}
 	for i := 0; i < int(node.ChildCount()); i++ {
-		walkNode(node.Child(i), src, fieldName, file, refs)
+		walkNode(node.Child(i), src, lines, fieldName, file, refs)
 	}
 }
