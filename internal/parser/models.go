@@ -6,11 +6,19 @@ import (
 
 	sitter "github.com/smacker/go-tree-sitter"
 	"github.com/smacker/go-tree-sitter/python"
+
+	"github.com/shinagawa-web/colref/internal/orm"
 )
 
-type Field struct {
-	Model string
-	Name  string
+// Field is a type alias for orm.Field for backward compatibility.
+type Field = orm.Field
+
+// DjangoParser implements orm.SchemaParser for Django/Python models.
+type DjangoParser struct{}
+
+// ParseSchema implements orm.SchemaParser.
+func (DjangoParser) ParseSchema(src []byte) ([]orm.Field, error) {
+	return ParseModels(src)
 }
 
 // parseCtxFn is the function used to parse Python source into a tree.

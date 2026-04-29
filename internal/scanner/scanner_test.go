@@ -479,6 +479,26 @@ func TestLineAt_OutOfBounds(t *testing.T) {
 	}
 }
 
+func TestPythonScanner_Methods(t *testing.T) {
+	dir := t.TempDir()
+	writeFile(t, dir, "views.py", `x = user.email`)
+
+	s := PythonScanner{}
+
+	refs, count, err := s.Scan(dir, "email")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if count != 1 || len(refs) != 1 {
+		t.Errorf("unexpected result: count=%d refs=%v", count, refs)
+	}
+
+	skipDirs := s.SkipDirs()
+	if !skipDirs["migrations"] {
+		t.Error("expected migrations to be in SkipDirs")
+	}
+}
+
 func TestScan_FExpression_NotDetected(t *testing.T) {
 	dir := t.TempDir()
 	// v0.1 limitation: F('email') passes the column as a string.

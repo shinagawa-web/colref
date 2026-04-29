@@ -10,12 +10,28 @@ import (
 
 	sitter "github.com/smacker/go-tree-sitter"
 	"github.com/smacker/go-tree-sitter/python"
+
+	"github.com/shinagawa-web/colref/internal/orm"
 )
 
-type Reference struct {
-	File string
-	Line int
-	Text string
+// Reference is a type alias for orm.Reference for backward compatibility.
+type Reference = orm.Reference
+
+// PythonScanner implements orm.ReferenceScanner for Python codebases.
+type PythonScanner struct{}
+
+// Scan implements orm.ReferenceScanner.
+func (PythonScanner) Scan(dir, fieldName string) ([]orm.Reference, int, error) {
+	return Scan(dir, fieldName)
+}
+
+// SkipDirs implements orm.ReferenceScanner, returning a defensive copy.
+func (PythonScanner) SkipDirs() map[string]bool {
+	copy := make(map[string]bool, len(SkipDirs))
+	for k, v := range SkipDirs {
+		copy[k] = v
+	}
+	return copy
 }
 
 // SkipDirs is the set of directory names that are never scanned.
