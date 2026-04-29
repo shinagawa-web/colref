@@ -259,12 +259,12 @@ class User(models.Model):
 	}
 }
 
-func TestRunCheck_Django_ParseModelsError(t *testing.T) {
-	origParseModels := parseModels
-	parseModels = func(src []byte) ([]parser.Field, error) {
+func TestRunCheck_Django_ParseModelsWithSetError(t *testing.T) {
+	origFn := parseModelsWithSet
+	parseModelsWithSet = func(src []byte, modelSet map[string]bool) ([]parser.Field, error) {
 		return nil, fmt.Errorf("injected parse error")
 	}
-	defer func() { parseModels = origParseModels }()
+	defer func() { parseModelsWithSet = origFn }()
 
 	dir := t.TempDir()
 	if err := os.WriteFile(filepath.Join(dir, "models.py"), []byte("class Foo: pass"), 0o644); err != nil {
@@ -272,10 +272,76 @@ func TestRunCheck_Django_ParseModelsError(t *testing.T) {
 	}
 	err := runCheck(dir, "Foo", "bar", "django")
 	if err == nil {
-		t.Fatal("expected error from ParseModels injection")
+		t.Fatal("expected error from parseModelsWithSet injection")
 	}
 	if !strings.Contains(err.Error(), "injected parse error") {
 		t.Errorf("unexpected error: %v", err)
+	}
+}
+
+func TestRunCheck_Django_BuildModelSetError(t *testing.T) {
+	origFn := buildModelSet
+	buildModelSet = func(sources [][]byte) (map[string]bool, error) {
+		return nil, fmt.Errorf("injected model set error")
+	}
+	defer func() { buildModelSet = origFn }()
+
+	dir := t.TempDir()
+	if err := os.WriteFile(filepath.Join(dir, "models.py"), []byte("class Foo: pass"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	err := runCheck(dir, "Foo", "bar", "django")
+	if err == nil {
+		t.Fatal("expected error from buildModelSet injection")
+	}
+	if !strings.Contains(err.Error(), "injected model set error") {
+		t.Errorf("unexpected error: %v", err)
+	}
+}
+
+func TestRunCheck_Django_CrossFileInheritance(t *testing.T) {
+	dir := t.TempDir()
+
+	core := filepath.Join(dir, "core")
+	order := filepath.Join(dir, "order")
+	if err := os.MkdirAll(core, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.MkdirAll(order, 0o755); err != nil {
+		t.Fatal(err)
+	}
+
+	// ModelWithMetadata is a Django model but its name does not end in "Model".
+	if err := os.WriteFile(filepath.Join(core, "models.py"), []byte(`
+from django.db import models
+
+class ModelWithMetadata(models.Model):
+    private_metadata = models.JSONField(default=dict)
+    metadata = models.JSONField(default=dict)
+`), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	// Order inherits from ModelWithMetadata (defined in a different file).
+	if err := os.WriteFile(filepath.Join(order, "models.py"), []byte(`
+from core.models import ModelWithMetadata
+
+class Order(ModelWithMetadata):
+    number = models.CharField(max_length=50)
+    status = models.CharField(max_length=32)
+`), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	if err := os.WriteFile(filepath.Join(order, "views.py"), []byte(`
+def show(order):
+    return order.status
+`), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	if err := runCheck(dir, "Order", "status", "django"); err != nil {
+		t.Fatalf("cross-file inheritance: Order.status should be detected: %v", err)
 	}
 }
 

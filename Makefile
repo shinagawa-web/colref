@@ -62,7 +62,7 @@ check-coverage: ## Run tests with coverage and enforce minimum threshold
 
 bench: ## Run benchmark tests
 	@echo "Running benchmark tests..."
-	$(GOTEST) -bench=. -benchmem ./... -run=^$$
+	$(GOTEST) -bench=. -benchmem -count=6 ./... -run=^$$
 
 bench-compare: ## Compare benchmarks against origin/main; blocks on ⚠️ +10%+ regression
 	@bash scripts/bench-compare.sh
