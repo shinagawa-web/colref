@@ -604,7 +604,361 @@ func TestRubyScanner_Methods(t *testing.T) {
 
 	skipDirs := s.SkipDirs()
 	if !skipDirs["node_modules"] {
-		t.Error("expected node_modules to be in SkipDirs")
+		t.Error("expected node_modules to be in RubySkipDirs")
+	}
+	if !skipDirs["spec"] {
+		t.Error("expected spec to be in RubySkipDirs")
+	}
+	if skipDirs["migrations"] {
+		t.Error("migrations should not be in RubySkipDirs")
+	}
+}
+
+func TestScanRuby_SkipSpecDir(t *testing.T) {
+	dir := t.TempDir()
+	specDir := filepath.Join(dir, "spec")
+	if err := os.MkdirAll(specDir, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	writeFile(t, specDir, "user_spec.rb", `user.email`)
+
+	refs, count, err := ScanRuby(dir, "email")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if count != 0 {
+		t.Errorf("want 0 files scanned (spec skipped), got %d", count)
+	}
+	if len(refs) != 0 {
+		t.Errorf("want 0 refs from spec dir, got %d", len(refs))
+	}
+}
+
+func TestScanRuby_SkipTestDir(t *testing.T) {
+	dir := t.TempDir()
+	testDir := filepath.Join(dir, "test")
+	if err := os.MkdirAll(testDir, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	writeFile(t, testDir, "user_test.rb", `user.email`)
+
+	refs, count, err := ScanRuby(dir, "email")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if count != 0 {
+		t.Errorf("want 0 files scanned (test skipped), got %d", count)
+	}
+	if len(refs) != 0 {
+		t.Errorf("want 0 refs from test dir, got %d", len(refs))
+	}
+}
+
+func TestScanRuby_SkipVendorDir(t *testing.T) {
+	dir := t.TempDir()
+	vendorDir := filepath.Join(dir, "vendor")
+	if err := os.MkdirAll(vendorDir, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	writeFile(t, vendorDir, "lib.rb", `user.email`)
+
+	refs, count, err := ScanRuby(dir, "email")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if count != 0 {
+		t.Errorf("want 0 files scanned (vendor skipped), got %d", count)
+	}
+	if len(refs) != 0 {
+		t.Errorf("want 0 refs from vendor dir, got %d", len(refs))
+	}
+}
+
+func TestScanRuby_SkipMigrateDir(t *testing.T) {
+	dir := t.TempDir()
+	migrateDir := filepath.Join(dir, "migrate")
+	if err := os.MkdirAll(migrateDir, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	writeFile(t, migrateDir, "001_create_users.rb", `user.email`)
+
+	refs, count, err := ScanRuby(dir, "email")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if count != 0 {
+		t.Errorf("want 0 files scanned (migrate skipped), got %d", count)
+	}
+	if len(refs) != 0 {
+		t.Errorf("want 0 refs from migrate dir, got %d", len(refs))
+	}
+}
+
+func TestScanRuby_ERBBasicMatch(t *testing.T) {
+	dir := t.TempDir()
+	writeFile(t, dir, "user.html.erb", `<%= user.email %>`)
+
+	refs, count, err := ScanRuby(dir, "email")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if count != 1 {
+		t.Fatalf("want 1 file scanned, got %d", count)
+	}
+	if len(refs) != 1 {
+		t.Fatalf("want 1 ref, got %d: %v", len(refs), refs)
+	}
+}
+
+func TestScanRuby_ERBInstanceVar(t *testing.T) {
+	dir := t.TempDir()
+	writeFile(t, dir, "user.html.erb", `<%= @user.email %>`)
+
+	refs, count, err := ScanRuby(dir, "email")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if count != 1 {
+		t.Fatalf("want 1 file scanned, got %d", count)
+	}
+	if len(refs) != 1 {
+		t.Fatalf("want 1 ref, got %d: %v", len(refs), refs)
+	}
+}
+
+func TestScanRuby_ERBNonOutputTag(t *testing.T) {
+	dir := t.TempDir()
+	writeFile(t, dir, "user.html.erb", `<% user.email %>`)
+
+	refs, count, err := ScanRuby(dir, "email")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if count != 1 {
+		t.Fatalf("want 1 file scanned, got %d", count)
+	}
+	if len(refs) != 1 {
+		t.Fatalf("want 1 ref, got %d: %v", len(refs), refs)
+	}
+}
+
+func TestScanRuby_ERBLineNumber(t *testing.T) {
+	dir := t.TempDir()
+	writeFile(t, dir, "user.html.erb", "<h1>Title</h1>\n<p><%= @user.email %></p>")
+
+	refs, _, err := ScanRuby(dir, "email")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(refs) != 1 {
+		t.Fatalf("want 1 ref, got %d: %v", len(refs), refs)
+	}
+	if refs[0].Line != 2 {
+		t.Errorf("want line 2, got %d", refs[0].Line)
+	}
+}
+
+func TestScanRuby_ERBNoMatch(t *testing.T) {
+	dir := t.TempDir()
+	writeFile(t, dir, "user.html.erb", `<%= user.name %>`)
+
+	refs, _, err := ScanRuby(dir, "email")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(refs) != 0 {
+		t.Errorf("want 0 refs, got %d: %v", len(refs), refs)
+	}
+}
+
+func TestScanRuby_ERBComment(t *testing.T) {
+	dir := t.TempDir()
+	writeFile(t, dir, "user.html.erb", `<%# user.email %>`)
+
+	refs, _, err := ScanRuby(dir, "email")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(refs) != 0 {
+		t.Errorf("want 0 refs from ERB comment, got %d: %v", len(refs), refs)
+	}
+}
+
+func TestScanRuby_ERBCommentThenExpression(t *testing.T) {
+	dir := t.TempDir()
+	writeFile(t, dir, "user.html.erb", `<%# x %><%= user.email %>`)
+
+	refs, _, err := ScanRuby(dir, "email")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(refs) != 1 {
+		t.Fatalf("want 1 ref after comment, got %d: %v", len(refs), refs)
+	}
+}
+
+func TestScanRuby_ERBDashClose(t *testing.T) {
+	dir := t.TempDir()
+	writeFile(t, dir, "user.html.erb", `<%= @user.email -%>`)
+
+	refs, _, err := ScanRuby(dir, "email")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(refs) != 1 {
+		t.Fatalf("want 1 ref with -%%> closing, got %d: %v", len(refs), refs)
+	}
+}
+
+func TestScanRuby_ERBCountedInFiles(t *testing.T) {
+	dir := t.TempDir()
+	writeFile(t, dir, "app.rb", `user.email`)
+	writeFile(t, dir, "user.html.erb", `<%= user.email %>`)
+
+	_, count, err := ScanRuby(dir, "email")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if count != 2 {
+		t.Errorf("want 2 files scanned (.rb + .erb), got %d", count)
+	}
+}
+
+func TestScanRuby_ERBParseCtxError(t *testing.T) {
+	orig := parseCtxFn
+	parseCtxFn = func(p *sitter.Parser, ctx context.Context, oldTree *sitter.Tree, src []byte) (*sitter.Tree, error) {
+		return nil, context.Canceled
+	}
+	defer func() { parseCtxFn = orig }()
+
+	dir := t.TempDir()
+	writeFile(t, dir, "user.html.erb", `<%= user.email %>`)
+
+	_, _, err := ScanRuby(dir, "email")
+	if err == nil {
+		t.Fatal("expected error when parseCtxFn fails on .erb file")
+	}
+}
+
+func TestScanRuby_RbParseCtxError(t *testing.T) {
+	orig := parseCtxFn
+	parseCtxFn = func(p *sitter.Parser, ctx context.Context, oldTree *sitter.Tree, src []byte) (*sitter.Tree, error) {
+		return nil, context.Canceled
+	}
+	defer func() { parseCtxFn = orig }()
+
+	dir := t.TempDir()
+	writeFile(t, dir, "app.rb", `user.email`)
+
+	_, _, err := ScanRuby(dir, "email")
+	if err == nil {
+		t.Fatal("expected error when parseCtxFn fails on .rb file")
+	}
+}
+
+func TestERBToRuby(t *testing.T) {
+	tests := []struct {
+		name  string
+		input string
+		want  string
+	}{
+		{
+			name:  "html replaced with spaces, newlines preserved",
+			input: "<h1>hello</h1>\n",
+			want:  "              \n",
+		},
+		{
+			name:  "output tag content preserved",
+			input: "<%= user.email %>",
+			want:  "    user.email   ",
+		},
+		{
+			name:  "non-output tag content preserved",
+			input: "<% user.email %>",
+			want:  "   user.email   ",
+		},
+		{
+			name:  "dash modifier opening",
+			input: "<%= @user.email -%>",
+			want:  "    @user.email -  ",
+		},
+		{
+			name:  "dash modifier in opening tag (<%- )",
+			input: "<%- user.email %>",
+			want:  "    user.email   ",
+		},
+		{
+			name:  "comment tag: content replaced with spaces",
+			input: "<%# user.email %>",
+			want:  "                 ",
+		},
+		{
+			name:  "comment tag preserves newlines",
+			input: "<%# comment\nnext %>",
+			want:  "           \n       ",
+		},
+		{
+			name:  "comment then expression",
+			input: "<%# x %><%= user.email %>",
+			want:  "            user.email   ",
+		},
+		{
+			name:  "lone < not followed by % is replaced with space",
+			input: "<b>text</b>",
+			want:  "           ",
+		},
+		{
+			name:  "ruby mode: lone % not followed by > is preserved",
+			input: "<% x = 5 % 2 %>",
+			want:  "   x = 5 % 2   ",
+		},
+		{
+			name:  "empty input",
+			input: "",
+			want:  "",
+		},
+		{
+			name:  "newline in html mode",
+			input: "hello\nworld",
+			want:  "     \n     ",
+		},
+		{
+			name:  "double-quoted string: %> inside is not a closing tag",
+			input: `<%= "%>" %>`,
+			want:  `    "%>"   `,
+		},
+		{
+			name:  "single-quoted string: %> inside is not a closing tag",
+			input: `<%= '%>' %>`,
+			want:  `    '%>'   `,
+		},
+		{
+			name:  "escaped quote inside string does not close string early",
+			input: "<%= \"a\\\"b\" %>",
+			want:  "    \"a\\\"b\"   ",
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			got := string(erbToRuby([]byte(tc.input)))
+			if got != tc.want {
+				t.Errorf("erbToRuby(%q)\nwant: %q\n got: %q", tc.input, tc.want, got)
+			}
+		})
+	}
+}
+
+func TestScanRuby_ERBStringLiteralWithPercentGT(t *testing.T) {
+	dir := t.TempDir()
+	writeFile(t, dir, "show.html.erb", `<%= "%>" %>`)
+
+	refs, _, err := ScanRuby(dir, "email")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(refs) != 0 {
+		t.Errorf("want 0 refs (string literal contains %%>, not a call), got %d: %v", len(refs), refs)
 	}
 }
 

@@ -45,8 +45,8 @@ func (RubyScanner) Scan(dir, fieldName string) ([]orm.Reference, int, error) {
 
 // SkipDirs implements orm.ReferenceScanner, returning a defensive copy.
 func (RubyScanner) SkipDirs() map[string]bool {
-	copy := make(map[string]bool, len(SkipDirs))
-	for k, v := range SkipDirs {
+	copy := make(map[string]bool, len(RubySkipDirs))
+	for k, v := range RubySkipDirs {
 		copy[k] = v
 	}
 	return copy
@@ -61,7 +61,16 @@ var SkipDirs = map[string]bool{
 	"node_modules": true,
 }
 
-// parseCtxFn is the function used to parse Python source into a tree.
+// RubySkipDirs is the set of directory names skipped when scanning Ruby projects.
+var RubySkipDirs = map[string]bool{
+	"spec":         true,
+	"test":         true,
+	"vendor":       true,
+	"migrate":      true,
+	"node_modules": true,
+}
+
+// parseCtxFn is the function used to parse source into a tree.
 // It is a var so tests can inject a failing version to cover error paths.
 var parseCtxFn = func(p *sitter.Parser, ctx context.Context, oldTree *sitter.Tree, src []byte) (*sitter.Tree, error) {
 	return p.ParseCtx(ctx, oldTree, src)
@@ -74,18 +83,25 @@ var filepathRelFn = filepath.Rel
 // Scan walks dir and returns every attribute-access node whose attribute name
 // equals fieldName, along with the total number of .py files examined.
 func Scan(dir, fieldName string) ([]Reference, int, error) {
-	return scanFiles(dir, fieldName, ".py", python.GetLanguage(), walkNode)
+	return scanFiles(dir, fieldName, map[string]func([]byte) []byte{".py": nil}, python.GetLanguage(), walkNode, SkipDirs)
 }
 
 // ScanRuby walks dir and returns every method-call node whose method name
-// equals fieldName, along with the total number of .rb files examined.
+// equals fieldName, along with the total number of .rb and .erb files examined.
 func ScanRuby(dir, fieldName string) ([]Reference, int, error) {
-	return scanFiles(dir, fieldName, ".rb", ruby.GetLanguage(), walkNodeRuby)
+	return scanFiles(dir, fieldName, map[string]func([]byte) []byte{
+		".rb":  nil,
+		".erb": erbToRuby,
+	}, ruby.GetLanguage(), walkNodeRuby, RubySkipDirs)
 }
 
 type walkFn func(node *sitter.Node, src []byte, lines [][]byte, fieldName, file string, refs *[]Reference)
 
-func scanFiles(dir, fieldName, ext string, lang *sitter.Language, walk walkFn) ([]Reference, int, error) {
+// scanFiles walks dir once and processes every file whose extension appears in
+// exts. Each value in exts is an optional transform applied to the raw source
+// before parsing; it must preserve len(src) so that tree-sitter byte offsets
+// remain valid. A nil transform means the source is used as-is.
+func scanFiles(dir, fieldName string, exts map[string]func([]byte) []byte, lang *sitter.Language, walk walkFn, skipDirs map[string]bool) ([]Reference, int, error) {
 	var refs []Reference
 	filesScanned := 0
 
@@ -95,12 +111,13 @@ func scanFiles(dir, fieldName, ext string, lang *sitter.Language, walk walkFn) (
 		}
 		if d.IsDir() {
 			name := d.Name()
-			if path != dir && (strings.HasPrefix(name, ".") || SkipDirs[name]) {
+			if path != dir && (strings.HasPrefix(name, ".") || skipDirs[name]) {
 				return filepath.SkipDir
 			}
 			return nil
 		}
-		if !strings.HasSuffix(path, ext) {
+		transform, ok := exts[filepath.Ext(path)]
+		if !ok {
 			return nil
 		}
 		filesScanned++
@@ -110,9 +127,14 @@ func scanFiles(dir, fieldName, ext string, lang *sitter.Language, walk walkFn) (
 			return err
 		}
 
+		parseSrc := src
+		if transform != nil {
+			parseSrc = transform(src)
+		}
+
 		p := sitter.NewParser()
 		p.SetLanguage(lang)
-		tree, err := parseCtxFn(p, context.Background(), nil, src)
+		tree, err := parseCtxFn(p, context.Background(), nil, parseSrc)
 		if err != nil {
 			return err
 		}
@@ -123,7 +145,7 @@ func scanFiles(dir, fieldName, ext string, lang *sitter.Language, walk walkFn) (
 		}
 		lines := bytes.Split(src, []byte("\n"))
 		var fileRefs []Reference
-		walk(tree.RootNode(), src, lines, fieldName, rel, &fileRefs)
+		walk(tree.RootNode(), parseSrc, lines, fieldName, rel, &fileRefs)
 		refs = append(refs, dedupeByLine(fileRefs)...)
 		return nil
 	})
@@ -172,6 +194,75 @@ func walkNodeRuby(node *sitter.Node, src []byte, lines [][]byte, fieldName, file
 	for i := 0; i < int(node.ChildCount()); i++ {
 		walkNodeRuby(node.Child(i), src, lines, fieldName, file, refs)
 	}
+}
+
+func erbToRuby(src []byte) []byte {
+	out := make([]byte, len(src))
+	inRuby := false
+	inComment := false
+	inString := byte(0) // '"' or '\'' when inside a Ruby string literal
+	escaped := false
+	i := 0
+	for i < len(src) {
+		if inComment {
+			if i+1 < len(src) && src[i] == '%' && src[i+1] == '>' {
+				out[i], out[i+1] = ' ', ' '
+				i += 2
+				inComment = false
+			} else if src[i] == '\n' {
+				out[i] = '\n'
+				i++
+			} else {
+				out[i] = ' '
+				i++
+			}
+		} else if inRuby {
+			if inString != 0 {
+				out[i] = src[i]
+				if escaped {
+					escaped = false
+				} else if src[i] == '\\' {
+					escaped = true
+				} else if src[i] == inString {
+					inString = 0
+				}
+				i++
+			} else if i+1 < len(src) && src[i] == '%' && src[i+1] == '>' {
+				out[i], out[i+1] = ' ', ' '
+				i += 2
+				inRuby = false
+			} else {
+				if src[i] == '"' || src[i] == '\'' {
+					inString = src[i]
+				}
+				out[i] = src[i]
+				i++
+			}
+		} else {
+			if i+1 < len(src) && src[i] == '<' && src[i+1] == '%' {
+				out[i], out[i+1] = ' ', ' '
+				i += 2
+				if i < len(src) && src[i] == '#' {
+					out[i] = ' '
+					i++
+					inComment = true
+				} else {
+					if i < len(src) && (src[i] == '=' || src[i] == '-') {
+						out[i] = ' '
+						i++
+					}
+					inRuby = true
+				}
+			} else if src[i] == '\n' {
+				out[i] = '\n'
+				i++
+			} else {
+				out[i] = ' '
+				i++
+			}
+		}
+	}
+	return out
 }
 
 func walkNode(node *sitter.Node, src []byte, lines [][]byte, fieldName, file string, refs *[]Reference) {
