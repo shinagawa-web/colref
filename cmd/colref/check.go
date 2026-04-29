@@ -39,7 +39,7 @@ func runCheckRails(dir, modelName, fieldName string) error {
 	schemaFile := filepath.Join(dir, "db", "schema.rb")
 	src, err := os.ReadFile(schemaFile)
 	if err != nil {
-		return err
+		return fmt.Errorf("read %s: %w", schemaFile, err)
 	}
 	fields, err := parseSchemaRb(src)
 	if err != nil {
