@@ -6,6 +6,7 @@ import (
 	"io/fs"
 	"os"
 	"path/filepath"
+	"sort"
 	"strings"
 
 	"github.com/shinagawa-web/colref/internal/orm"
@@ -75,7 +76,7 @@ func runCheckDjango(dir, modelName, fieldName string) error {
 		return err
 	}
 	if len(modelsFiles) == 0 {
-		return fmt.Errorf("no models.py found under %s", dir)
+		return fmt.Errorf("no models.py or models/*.py found under %s", dir)
 	}
 
 	// Read all sources first so we can build a cross-file model set.
@@ -204,11 +205,12 @@ func findModelsFiles(dir string) ([]string, error) {
 			}
 			return nil
 		}
-		if filepath.Base(path) == "models.py" {
+		if filepath.Base(path) == "models.py" || (filepath.Ext(path) == ".py" && filepath.Base(filepath.Dir(path)) == "models") {
 			files = append(files, path)
 		}
 		return nil
 	})
+	sort.Strings(files)
 	return files, err
 }
 

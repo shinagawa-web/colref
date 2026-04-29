@@ -376,6 +376,96 @@ class User(models.Model):
 	}
 }
 
+func TestRunCheck_Django_ModelsPackage_Basic(t *testing.T) {
+	dir := t.TempDir()
+	modelsDir := filepath.Join(dir, "zerver", "models")
+	if err := os.MkdirAll(modelsDir, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	for _, f := range []struct{ name, content string }{
+		{"__init__.py", ""},
+		{"users.py", "from django.db import models\nclass User(models.Model):\n    email = models.EmailField()\n"},
+		{"messages.py", "from django.db import models\nclass Message(models.Model):\n    text = models.TextField()\n"},
+	} {
+		if err := os.WriteFile(filepath.Join(modelsDir, f.name), []byte(f.content), 0o644); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if err := os.WriteFile(filepath.Join(dir, "zerver", "views.py"), []byte("def show(u): return u.email\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if err := runCheck(dir, "User", "email", "django"); err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+}
+
+func TestRunCheck_Django_ModelsPackage_CrossFileRef(t *testing.T) {
+	dir := t.TempDir()
+	modelsDir := filepath.Join(dir, "blog", "models")
+	if err := os.MkdirAll(modelsDir, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(modelsDir, "users.py"), []byte("from django.db import models\nclass User(models.Model):\n    name = models.CharField(max_length=100)\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(modelsDir, "posts.py"), []byte("from django.db import models\nfrom blog.models.users import User\nclass Post(User):\n    title = models.CharField(max_length=200)\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(dir, "blog", "views.py"), []byte("def show(p): return p.title\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if err := runCheck(dir, "Post", "title", "django"); err != nil {
+		t.Fatalf("cross-file ref in models package: %v", err)
+	}
+}
+
+func TestRunCheck_Django_ModelsPackage_MixedLayout(t *testing.T) {
+	dir := t.TempDir()
+
+	// app1 uses models.py
+	app1 := filepath.Join(dir, "app1")
+	if err := os.MkdirAll(app1, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(app1, "models.py"), []byte("from django.db import models\nclass Product(models.Model):\n    name = models.CharField(max_length=100)\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	// app2 uses models/ package
+	app2Models := filepath.Join(dir, "app2", "models")
+	if err := os.MkdirAll(app2Models, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(app2Models, "order.py"), []byte("from django.db import models\nclass Order(models.Model):\n    total = models.DecimalField(max_digits=10, decimal_places=2)\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	if err := runCheck(dir, "Product", "name", "django"); err != nil {
+		t.Fatalf("mixed layout — Product.name: %v", err)
+	}
+	if err := runCheck(dir, "Order", "total", "django"); err != nil {
+		t.Fatalf("mixed layout — Order.total: %v", err)
+	}
+}
+
+func TestRunCheck_Django_ModelsPackage_SkipHiddenDir(t *testing.T) {
+	dir := t.TempDir()
+	hiddenModels := filepath.Join(dir, ".venv", "zerver", "models")
+	if err := os.MkdirAll(hiddenModels, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(hiddenModels, "users.py"), []byte("from django.db import models\nclass User(models.Model):\n    email = models.EmailField()\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	err := runCheck(dir, "User", "email", "django")
+	if err == nil {
+		t.Fatal("expected error: models/ inside hidden dir should be skipped")
+	}
+	if !strings.Contains(err.Error(), "models.py") || !strings.Contains(err.Error(), "models/") {
+		t.Errorf("error should mention both models.py and models/, got: %v", err)
+	}
+}
+
 func TestRunCheck_Rails_RefsFound(t *testing.T) {
 	dir := setupRailsFixture(t)
 	if err := runCheck(dir, "User", "email", "rails"); err != nil {
