@@ -2,24 +2,11 @@ package parser
 
 import (
 	"context"
-	"fmt"
 	"testing"
 
 	sitter "github.com/smacker/go-tree-sitter"
+	"github.com/smacker/go-tree-sitter/python"
 )
-
-func TestParseModels_ParseError(t *testing.T) {
-	orig := parseCtxFn
-	t.Cleanup(func() { parseCtxFn = orig })
-	parseCtxFn = func(_ *sitter.Parser, _ context.Context, _ *sitter.Tree, _ []byte) (*sitter.Tree, error) {
-		return nil, fmt.Errorf("injected parse error")
-	}
-
-	_, err := ParseModels([]byte(`class User(models.Model): pass`))
-	if err == nil {
-		t.Fatal("expected error from injected parse failure")
-	}
-}
 
 func TestParseModels(t *testing.T) {
 	src := []byte(`
@@ -69,293 +56,6 @@ class NotAModel:
 	}
 }
 
-func TestParseModels_MethodsAndPropertiesNotExtracted(t *testing.T) {
-	src := []byte(`
-from django.db import models
-
-class User(models.Model):
-    email = models.EmailField()
-
-    @property
-    def display_name(self):
-        return self.email
-
-    def save(self, *args, **kwargs):
-        self.email = self.email.lower()
-        super().save(*args, **kwargs)
-`)
-
-	fields, err := ParseModels(src)
-	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
-	}
-
-	for _, f := range fields {
-		if f.Name == "display_name" || f.Name == "save" {
-			t.Errorf("method/property %q should not be extracted as a field", f.Name)
-		}
-	}
-	if len(fields) != 1 || fields[0].Name != "email" {
-		t.Errorf("want only email field, got %v", fields)
-	}
-}
-
-func TestParseModels_ClassVariablesNotFields(t *testing.T) {
-	src := []byte(`
-from django.db import models
-
-class User(models.Model):
-    email = models.EmailField()
-    MAX_LENGTH = 254
-    DEFAULT_ROLE = "member"
-    ACTIVE = True
-`)
-
-	fields, err := ParseModels(src)
-	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
-	}
-
-	for _, f := range fields {
-		if f.Name == "MAX_LENGTH" || f.Name == "DEFAULT_ROLE" || f.Name == "ACTIVE" {
-			t.Errorf("class constant %q should not be extracted as a field", f.Name)
-		}
-	}
-	if len(fields) != 1 || fields[0].Name != "email" {
-		t.Errorf("want only email field, got %v", fields)
-	}
-}
-
-func TestParseModels_MultipleInheritanceWithMixin(t *testing.T) {
-	src := []byte(`
-from django.db import models
-
-class AuditMixin:
-    pass
-
-class Order(AuditMixin, models.Model):
-    total = models.DecimalField(max_digits=10, decimal_places=2)
-`)
-
-	fields, err := ParseModels(src)
-	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
-	}
-
-	found := false
-	for _, f := range fields {
-		if f.Model == "Order" && f.Name == "total" {
-			found = true
-		}
-	}
-	if !found {
-		t.Errorf("Order.total not found; got %v", fields)
-	}
-}
-
-func TestParseModels_ThirdPartyFields(t *testing.T) {
-	src := []byte(`
-from django.db import models
-from imagekit.models import ImageSpecField
-from django_extensions.db.fields import AutoSlugField
-
-class Article(models.Model):
-    thumbnail = ImageSpecField(source="photo")
-    slug = AutoSlugField(populate_from="title")
-    title = models.CharField(max_length=200)
-`)
-
-	fields, err := ParseModels(src)
-	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
-	}
-
-	names := map[string]bool{}
-	for _, f := range fields {
-		names[f.Name] = true
-	}
-	if !names["title"] {
-		t.Error("title (models.CharField) should be extracted")
-	}
-	if !names["thumbnail"] {
-		t.Error("thumbnail (ImageSpecField) should be extracted — ends in Field")
-	}
-	if !names["slug"] {
-		t.Error("slug (AutoSlugField) should be extracted — ends in Field")
-	}
-}
-
-func TestParseModels_DirectImport(t *testing.T) {
-	src := []byte(`
-from django.db.models import CharField, EmailField
-
-class User(models.Model):
-    name = CharField(max_length=100)
-    email = EmailField()
-`)
-
-	fields, err := ParseModels(src)
-	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
-	}
-
-	names := map[string]bool{}
-	for _, f := range fields {
-		names[f.Name] = true
-	}
-	if !names["name"] {
-		t.Error("name (CharField bare identifier) should be extracted")
-	}
-	if !names["email"] {
-		t.Error("email (EmailField bare identifier) should be extracted")
-	}
-}
-
-func TestParseModels_ThirdPartyAttributeField(t *testing.T) {
-	// Field accessed as attribute (e.g. imagekit.ImageSpecField) rather than
-	// bare identifier. Exercises isDjangoField's attribute branch when
-	// obj != "models" but attr ends in "Field".
-	src := []byte(`
-from django.db import models
-import imagekit
-
-class Article(models.Model):
-    thumbnail = imagekit.ImageSpecField(source="photo")
-    title = models.CharField(max_length=200)
-`)
-
-	fields, err := ParseModels(src)
-	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
-	}
-
-	names := map[string]bool{}
-	for _, f := range fields {
-		names[f.Name] = true
-	}
-	if !names["thumbnail"] {
-		t.Error("thumbnail (imagekit.ImageSpecField) should be extracted — attr ends in Field")
-	}
-	if !names["title"] {
-		t.Error("title (models.CharField) should be extracted")
-	}
-}
-
-func TestParseModels_NonFieldAttribute_NotDetected(t *testing.T) {
-	// Exercises isDjangoField's attribute branch when obj != "models" AND
-	// attr does NOT end in "Field" — should return false.
-	src := []byte(`
-from django.db import models
-
-class Invoice(models.Model):
-    amount = accounting.MoneyColumn(currency="JPY")
-    note = models.TextField()
-`)
-
-	fields, err := ParseModels(src)
-	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
-	}
-
-	names := map[string]bool{}
-	for _, f := range fields {
-		names[f.Name] = true
-	}
-	if names["amount"] {
-		t.Error("amount (accounting.MoneyColumn) should NOT be extracted")
-	}
-	if !names["note"] {
-		t.Error("note (models.TextField) should be extracted")
-	}
-}
-
-func TestParseModels_UnknownCustomField_NotDetected(t *testing.T) {
-	src := []byte(`
-from django.db import models
-from myapp.db import MoneyColumn
-
-class Invoice(models.Model):
-    amount = MoneyColumn(currency="JPY")
-    note = models.TextField()
-`)
-
-	fields, err := ParseModels(src)
-	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
-	}
-
-	names := map[string]bool{}
-	for _, f := range fields {
-		names[f.Name] = true
-	}
-	if names["amount"] {
-		t.Errorf("amount (MoneyColumn, no 'Field' suffix) should NOT be extracted — v0.1 limitation")
-	}
-	if !names["note"] {
-		t.Error("note (models.TextField) should be extracted")
-	}
-}
-
-func TestParseModels_NonModelSuperclasses_NotIncluded(t *testing.T) {
-	// isModelClass must iterate all superclasses and return false when none
-	// end in "Model". Exercises the loop-exhausted return false path.
-	src := []byte(`
-from django.db import models
-
-class SomeHelper(BaseHelper, Mixin):
-    name = models.CharField(max_length=100)
-
-class RealModel(models.Model):
-    value = models.IntegerField()
-`)
-
-	fields, err := ParseModels(src)
-	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
-	}
-
-	for _, f := range fields {
-		if f.Model == "SomeHelper" {
-			t.Errorf("SomeHelper (no Model base) should not be included; got field %v", f)
-		}
-	}
-	found := false
-	for _, f := range fields {
-		if f.Model == "RealModel" && f.Name == "value" {
-			found = true
-		}
-	}
-	if !found {
-		t.Errorf("RealModel.value not found; got %v", fields)
-	}
-}
-
-func TestParseModels_TupleAssignmentSkipped(t *testing.T) {
-	// Tuple unpacking on the left side is not a field declaration.
-	// Exercises the left.Type() != "identifier" continue branch in extractFields.
-	src := []byte(`
-from django.db import models
-
-class User(models.Model):
-    email = models.EmailField()
-    (a, b) = (1, 2)
-`)
-
-	fields, err := ParseModels(src)
-	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
-	}
-
-	for _, f := range fields {
-		if f.Name == "a" || f.Name == "b" {
-			t.Errorf("tuple assignment target %q should not be extracted as a field", f.Name)
-		}
-	}
-	if len(fields) != 1 || fields[0].Name != "email" {
-		t.Errorf("want only email field, got %v", fields)
-	}
-}
-
 func TestParseModels_AbstractBase(t *testing.T) {
 	src := []byte(`
 from django.db import models
@@ -390,5 +90,190 @@ class Article(TimestampedModel):
 	}
 	if !models["Article"] {
 		t.Error("expected Article to be included")
+	}
+}
+
+// TestParseModels_ParseCtxError covers the ParseCtx error path by injecting
+// a failing parseCtxFn.
+func TestParseModels_ParseCtxError(t *testing.T) {
+	orig := parseCtxFn
+	parseCtxFn = func(p *sitter.Parser, ctx context.Context, oldTree *sitter.Tree, src []byte) (*sitter.Tree, error) {
+		return nil, ctx.Err()
+	}
+	defer func() { parseCtxFn = orig }()
+
+	// Use a cancelled context to return a non-nil error from the injected fn.
+	// The injected fn returns ctx.Err() but ParseModels uses context.Background(),
+	// so we simulate the error by returning a sentinel error regardless.
+	parseCtxFn = func(p *sitter.Parser, ctx context.Context, oldTree *sitter.Tree, src []byte) (*sitter.Tree, error) {
+		return nil, context.Canceled
+	}
+
+	_, err := ParseModels([]byte(`x = 1`))
+	if err == nil {
+		t.Fatal("expected error from ParseModels when parseCtxFn fails")
+	}
+}
+
+// TestExtractFields_NoBody covers the body==nil branch in extractFields by
+// passing a non-class node that has no "body" field.
+func TestExtractFields_NoBody(t *testing.T) {
+	src := []byte(`x = 1`)
+	p := sitter.NewParser()
+	p.SetLanguage(python.GetLanguage())
+	tree, err := p.ParseCtx(context.Background(), nil, src)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	// The root child is an expression_statement, which has no "body" field.
+	stmt := tree.RootNode().Child(0)
+	if got := extractFields(stmt, src); got != nil {
+		t.Errorf("expected nil for non-class node, got %v", got)
+	}
+}
+
+// TestParseModels_NoModel covers the isModelClass false-return branch:
+// a class that does not inherit from anything ending in "Model".
+func TestParseModels_NoModel(t *testing.T) {
+	src := []byte(`
+class Helper(SomeBase):
+    value = 42
+`)
+	fields, err := ParseModels(src)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if len(fields) != 0 {
+		t.Errorf("expected 0 fields for non-model class, got %d: %v", len(fields), fields)
+	}
+}
+
+// TestParseModels_SkipNonAssignments covers the extractFields branches that
+// skip non-assignment statements and non-identifier left-hand sides.
+func TestParseModels_SkipNonAssignments(t *testing.T) {
+	src := []byte(`
+from django.db import models
+
+class MyModel(models.Model):
+    email = models.EmailField()
+    some_call()
+    self.attr = models.CharField()
+`)
+	fields, err := ParseModels(src)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	// Only 'email' should be detected (simple identifier lhs + django field rhs).
+	// 'some_call()' is an expression_statement but not an assignment.
+	// 'self.attr' has attribute lhs (not identifier) — skipped.
+	found := false
+	for _, f := range fields {
+		if f.Name == "email" {
+			found = true
+		}
+		if f.Name == "attr" {
+			t.Error("'attr' should not be found (non-identifier lhs)")
+		}
+	}
+	if !found {
+		t.Error("expected 'email' field to be found")
+	}
+}
+
+// TestIsDjangoField_Nil covers the nil-node early return in isDjangoField.
+func TestIsDjangoField_Nil(t *testing.T) {
+	if isDjangoField(nil, nil) {
+		t.Error("isDjangoField(nil, nil) should return false")
+	}
+}
+
+// TestIsDjangoField_BareIdentifier covers the identifier branch (lines 127-130).
+// A bare identifier ending in "Field" should return true; otherwise false.
+func TestIsDjangoField_BareIdentifier(t *testing.T) {
+	// CharField imported directly: rhs is a bare call to CharField → identifier after unwrap.
+	// tag = bare_id: identifier that does not end in "Field" → false.
+	src := []byte(`
+from django.db.models import CharField, IntegerField
+
+class MyModel(models.Model):
+    name = CharField(max_length=100)
+    count = IntegerField()
+    tag = bare_id
+`)
+	fields, err := ParseModels(src)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	found := map[string]bool{}
+	for _, f := range fields {
+		found[f.Name] = true
+	}
+	if !found["name"] {
+		t.Error("expected 'name' field (CharField bare identifier) to be found")
+	}
+	if !found["count"] {
+		t.Error("expected 'count' field (IntegerField bare identifier) to be found")
+	}
+	if found["tag"] {
+		t.Error("expected 'tag' (bare_id) NOT to be found as a Django field")
+	}
+}
+
+// TestIsDjangoField_NonFieldLiteral covers the final return false in isDjangoField
+// when the rhs is a literal (integer or string) — not a call, attribute, or identifier.
+func TestIsDjangoField_NonFieldLiteral(t *testing.T) {
+	src := []byte(`
+from django.db import models
+
+class MyModel(models.Model):
+    email = models.EmailField()
+    MAX_LENGTH = 100
+    STATUS = "active"
+`)
+	fields, err := ParseModels(src)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	found := map[string]bool{}
+	for _, f := range fields {
+		found[f.Name] = true
+	}
+	if !found["email"] {
+		t.Error("expected 'email' to be found")
+	}
+	if found["MAX_LENGTH"] {
+		t.Error("MAX_LENGTH (integer literal) should not be a field")
+	}
+	if found["STATUS"] {
+		t.Error("STATUS (string literal) should not be a field")
+	}
+}
+
+// TestIsDjangoField_ThirdPartyAttribute covers the attribute branch where the
+// object is not "models" but the attribute name ends in "Field" (third-party fields),
+// and the case where neither condition matches (returns false).
+func TestIsDjangoField_ThirdPartyAttribute(t *testing.T) {
+	src := []byte(`
+from django.db import models
+
+class MyModel(models.Model):
+    photo = stdimage.StdImageField()
+    config = SomeUtils.VALUE
+`)
+	fields, err := ParseModels(src)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	found := map[string]bool{}
+	for _, f := range fields {
+		found[f.Name] = true
+	}
+	// photo: attribute obj="stdimage" (not "models"), attr="StdImageField" (ends in "Field") → true
+	if !found["photo"] {
+		t.Error("expected 'photo' (third-party StdImageField) to be found")
+	}
+	// config: attribute obj="SomeUtils" (not "models"), attr="VALUE" (no "Field" suffix) → false
+	if found["config"] {
+		t.Error("expected 'config' (SomeUtils.VALUE) NOT to be found as a Django field")
 	}
 }

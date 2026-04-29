@@ -26,6 +26,16 @@ var SkipDirs = map[string]bool{
 	"node_modules": true,
 }
 
+// parseCtxFn is the function used to parse Python source into a tree.
+// It is a var so tests can inject a failing version to cover error paths.
+var parseCtxFn = func(p *sitter.Parser, ctx context.Context, oldTree *sitter.Tree, src []byte) (*sitter.Tree, error) {
+	return p.ParseCtx(ctx, oldTree, src)
+}
+
+// filepathRelFn is the function used to compute relative paths.
+// It is a var so tests can inject a failing version to cover error paths.
+var filepathRelFn = filepath.Rel
+
 // Scan walks dir and returns every attribute-access node whose attribute name
 // equals fieldName, along with the total number of .py files examined.
 func Scan(dir, fieldName string) ([]Reference, int, error) {
@@ -56,12 +66,12 @@ func Scan(dir, fieldName string) ([]Reference, int, error) {
 
 		p := sitter.NewParser()
 		p.SetLanguage(lang)
-		tree, err := p.ParseCtx(context.Background(), nil, src)
+		tree, err := parseCtxFn(p, context.Background(), nil, src)
 		if err != nil {
 			return err
 		}
 
-		rel, err := filepath.Rel(dir, path)
+		rel, err := filepathRelFn(dir, path)
 		if err != nil {
 			rel = filepath.Clean(path)
 		}
