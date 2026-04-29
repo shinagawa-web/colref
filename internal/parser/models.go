@@ -13,11 +13,17 @@ type Field struct {
 	Name  string
 }
 
+// parseCtxFn is the function used to parse Python source into a tree.
+// It is a var so tests can inject a failing version to cover error paths.
+var parseCtxFn = func(p *sitter.Parser, ctx context.Context, oldTree *sitter.Tree, src []byte) (*sitter.Tree, error) {
+	return p.ParseCtx(ctx, oldTree, src)
+}
+
 func ParseModels(src []byte) ([]Field, error) {
 	p := sitter.NewParser()
 	p.SetLanguage(python.GetLanguage())
 
-	tree, err := p.ParseCtx(context.Background(), nil, src)
+	tree, err := parseCtxFn(p, context.Background(), nil, src)
 	if err != nil {
 		return nil, err
 	}

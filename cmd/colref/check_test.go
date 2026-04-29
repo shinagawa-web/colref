@@ -1,10 +1,13 @@
 package main
 
 import (
+	"fmt"
 	"os"
 	"path/filepath"
 	"strings"
 	"testing"
+
+	"github.com/shinagawa-web/colref/internal/parser"
 )
 
 func setupFixture(t *testing.T) string {
@@ -139,5 +142,72 @@ func TestRunCheck_NoModelsFile(t *testing.T) {
 	}
 	if !strings.Contains(err.Error(), "no models.py") {
 		t.Errorf("unexpected error: %v", err)
+	}
+}
+
+func TestRunCheck_NoModelsDetected(t *testing.T) {
+	dir := t.TempDir()
+	if err := os.WriteFile(filepath.Join(dir, "models.py"), []byte(`
+class NotAModel:
+    pass
+`), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	err := runCheck(dir, "User", "email", "")
+	if err == nil {
+		t.Fatal("expected error when no models detected")
+	}
+	if !strings.Contains(err.Error(), "no models detected") {
+		t.Errorf("error should mention 'no models detected', got: %v", err)
+	}
+}
+
+func TestRunCheck_ParseError(t *testing.T) {
+	orig := parseModels
+	t.Cleanup(func() { parseModels = orig })
+	parseModels = func(_ []byte) ([]parser.Field, error) {
+		return nil, fmt.Errorf("injected parse error")
+	}
+
+	dir := setupFixture(t)
+	modelsFile := filepath.Join(dir, "accounts", "models.py")
+	err := runCheck(dir, "User", "email", modelsFile)
+	if err == nil {
+		t.Fatal("expected error from parse failure")
+	}
+	if !strings.Contains(err.Error(), "injected parse error") {
+		t.Errorf("unexpected error: %v", err)
+	}
+}
+
+func TestRunCheck_ConflictRelPathFallback(t *testing.T) {
+	orig := filepathRelFn
+	t.Cleanup(func() { filepathRelFn = orig })
+	filepathRelFn = func(_, path string) (string, error) {
+		return "", fmt.Errorf("injected rel error")
+	}
+
+	dir := t.TempDir()
+	for _, app := range []string{"app1", "app2"} {
+		d := filepath.Join(dir, app)
+		if err := os.MkdirAll(d, 0o755); err != nil {
+			t.Fatal(err)
+		}
+		if err := os.WriteFile(filepath.Join(d, "models.py"), []byte(`
+from django.db import models
+class User(models.Model):
+    email = models.EmailField()
+`), 0o644); err != nil {
+			t.Fatal(err)
+		}
+	}
+
+	err := runCheck(dir, "User", "email", "")
+	if err == nil {
+		t.Fatal("expected conflict error")
+	}
+	if !strings.Contains(err.Error(), "multiple files") {
+		t.Errorf("expected 'multiple files' error, got: %v", err)
 	}
 }

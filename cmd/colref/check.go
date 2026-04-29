@@ -11,6 +11,14 @@ import (
 	"github.com/shinagawa-web/colref/internal/scanner"
 )
 
+// parseModels is the function used to parse a models.py source file.
+// It is a var so tests can inject a failing version to cover error paths.
+var parseModels = parser.ParseModels
+
+// filepathRelFn is the function used to compute relative paths in runCheck.
+// It is a var so tests can inject a failing version to cover error paths.
+var filepathRelFn = filepath.Rel
+
 func runCheck(dir, modelName, fieldName, modelsFile string) error {
 	// Determine which models.py files to parse.
 	var modelsFiles []string
@@ -38,7 +46,7 @@ func runCheck(dir, modelName, fieldName, modelsFile string) error {
 		if err != nil {
 			return err
 		}
-		fields, err := parser.ParseModels(src)
+		fields, err := parseModels(src)
 		if err != nil {
 			return fmt.Errorf("parse %s: %w", f, err)
 		}
@@ -60,7 +68,7 @@ func runCheck(dir, modelName, fieldName, modelsFile string) error {
 	if files := modelToFiles[modelName]; len(files) > 1 {
 		lines := []string{fmt.Sprintf("model %q found in multiple files:", modelName)}
 		for _, f := range files {
-			rel, err := filepath.Rel(dir, f)
+			rel, err := filepathRelFn(dir, f)
 			if err != nil {
 				rel = filepath.Clean(f)
 			}

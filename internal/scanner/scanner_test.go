@@ -169,3 +169,159 @@ func TestScan_MultipleFiles(t *testing.T) {
 		t.Fatalf("want 2 refs, got %d: %v", len(refs), refs)
 	}
 }
+
+func TestScan_IgnoresNonPyFiles(t *testing.T) {
+	dir := t.TempDir()
+	writeFile(t, dir, "views.py", `x = user.email`)
+	writeFile(t, dir, "README.md", `user.email is a field`)
+	writeFile(t, dir, "config.yaml", `email: user.email`)
+
+	refs, count, err := Scan(dir, "email")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if count != 1 {
+		t.Fatalf("want 1 .py file scanned, got %d", count)
+	}
+	if len(refs) != 1 {
+		t.Fatalf("want 1 ref (from .py only), got %d: %v", len(refs), refs)
+	}
+}
+
+func TestScan_FString(t *testing.T) {
+	dir := t.TempDir()
+	writeFile(t, dir, "views.py", `msg = f"contact: {user.email}"`)
+
+	refs, _, err := Scan(dir, "email")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(refs) != 1 {
+		t.Fatalf("want 1 ref inside f-string, got %d: %v", len(refs), refs)
+	}
+}
+
+func TestScan_Lambda(t *testing.T) {
+	dir := t.TempDir()
+	writeFile(t, dir, "utils.py", `get_email = lambda u: u.email`)
+
+	refs, _, err := Scan(dir, "email")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(refs) != 1 {
+		t.Fatalf("want 1 ref in lambda, got %d: %v", len(refs), refs)
+	}
+}
+
+func TestScan_ListComprehension(t *testing.T) {
+	dir := t.TempDir()
+	writeFile(t, dir, "views.py", `emails = [u.email for u in users]`)
+
+	refs, _, err := Scan(dir, "email")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(refs) != 1 {
+		t.Fatalf("want 1 ref in list comprehension, got %d: %v", len(refs), refs)
+	}
+}
+
+func TestScan_ChainedCall(t *testing.T) {
+	dir := t.TempDir()
+	writeFile(t, dir, "views.py", `addr = user.email.lower()`)
+
+	refs, _, err := Scan(dir, "email")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(refs) != 1 {
+		t.Fatalf("want 1 ref (chained call), got %d: %v", len(refs), refs)
+	}
+}
+
+func TestScan_WalrusOperator(t *testing.T) {
+	dir := t.TempDir()
+	writeFile(t, dir, "views.py", `
+if addr := user.email:
+    send(addr)
+`)
+
+	refs, _, err := Scan(dir, "email")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(refs) != 1 {
+		t.Fatalf("want 1 ref with walrus operator, got %d: %v", len(refs), refs)
+	}
+}
+
+func TestScan_TernaryExpression(t *testing.T) {
+	dir := t.TempDir()
+	writeFile(t, dir, "views.py", `addr = user.email if user.is_active else None`)
+
+	refs, _, err := Scan(dir, "email")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(refs) != 1 {
+		t.Fatalf("want 1 ref in ternary, got %d: %v", len(refs), refs)
+	}
+}
+
+func TestScan_TypeAnnotatedFunction(t *testing.T) {
+	dir := t.TempDir()
+	writeFile(t, dir, "views.py", `
+def get_email(user: User) -> str:
+    return user.email
+`)
+
+	refs, _, err := Scan(dir, "email")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(refs) != 1 {
+		t.Fatalf("want 1 ref in type-annotated function, got %d: %v", len(refs), refs)
+	}
+}
+
+// --- v0.1 known limitations: string-based ORM calls are NOT detected ---
+
+func TestScan_FilterKwarg_NotDetected(t *testing.T) {
+	dir := t.TempDir()
+	writeFile(t, dir, "views.py", `qs = User.objects.filter(email="x@example.com")`)
+
+	refs, _, err := Scan(dir, "email")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(refs) != 0 {
+		t.Errorf("filter kwarg should not be detected in v0.1, got %d: %v", len(refs), refs)
+	}
+}
+
+func TestScan_ValuesString_NotDetected(t *testing.T) {
+	dir := t.TempDir()
+	writeFile(t, dir, "views.py", `qs = User.objects.values("email")`)
+
+	refs, _, err := Scan(dir, "email")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(refs) != 0 {
+		t.Errorf(".values() string should not be detected in v0.1, got %d: %v", len(refs), refs)
+	}
+}
+
+func TestScan_GetAttr_NotDetected(t *testing.T) {
+	dir := t.TempDir()
+	writeFile(t, dir, "views.py", `v = getattr(user, "email")`)
+
+	refs, _, err := Scan(dir, "email")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(refs) != 0 {
+		t.Errorf("getattr() should not be detected in v0.1, got %d: %v", len(refs), refs)
+	}
+}
