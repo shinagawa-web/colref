@@ -588,6 +588,27 @@ func TestScanRuby_NoMatch(t *testing.T) {
 	}
 }
 
+func TestScanRuby_StandaloneCallNotMatched(t *testing.T) {
+	dir := t.TempDir()
+	// raw(string) is a Rails helper called without a receiver.
+	// It must not be reported as a reference to the "raw" field.
+	writeFile(t, dir, "app.rb", `
+raw(some_string)
+user.raw
+`)
+
+	refs, _, err := ScanRuby(dir, "raw")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(refs) != 1 {
+		t.Fatalf("want 1 ref (user.raw only), got %d: %v", len(refs), refs)
+	}
+	if refs[0].Text != "user.raw" {
+		t.Errorf("want user.raw, got %q", refs[0].Text)
+	}
+}
+
 func TestRubyScanner_Methods(t *testing.T) {
 	dir := t.TempDir()
 	writeFile(t, dir, "app.rb", `user.email`)

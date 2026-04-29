@@ -175,10 +175,13 @@ func lineAt(lines [][]byte, row int) string {
 
 // walkNodeRuby matches Ruby method calls (call nodes) where the method name
 // equals fieldName, e.g. user.email → matches "email".
+// A receiver is required to avoid false positives on standalone method calls
+// like raw(string) or send(msg) that share a name with the target field.
 func walkNodeRuby(node *sitter.Node, src []byte, lines [][]byte, fieldName, file string, refs *[]Reference) {
 	if node.Type() == "call" {
 		method := node.ChildByFieldName("method")
-		if method != nil && method.Content(src) == fieldName {
+		receiver := node.ChildByFieldName("receiver")
+		if method != nil && receiver != nil && method.Content(src) == fieldName {
 			methodRow := int(method.StartPoint().Row)
 			text := node.Content(src)
 			if int(node.StartPoint().Row) != methodRow {
