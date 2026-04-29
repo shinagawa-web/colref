@@ -536,6 +536,57 @@ class Order(ModelWithMetadata):
 	}
 }
 
+// TestBuildModelSet_ModuleQualifiedBase verifies cross-file transitive detection when the
+// subclass uses a module-qualified base (core_models.ModelWithMetadata).
+func TestBuildModelSet_ModuleQualifiedBase(t *testing.T) {
+	coreModels := []byte(`
+from django.db import models
+
+class ModelWithMetadata(models.Model):
+    metadata = models.JSONField(default=dict)
+`)
+	orderModels := []byte(`
+import core.models as core_models
+
+class Order(core_models.ModelWithMetadata):
+    number = models.CharField(max_length=50)
+`)
+
+	modelSet, err := BuildModelSet([][]byte{coreModels, orderModels})
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if !modelSet["ModelWithMetadata"] {
+		t.Error("expected ModelWithMetadata in model set")
+	}
+	if !modelSet["Order"] {
+		t.Error("expected Order (module-qualified base) in model set")
+	}
+}
+
+// TestParseModels_AliasedModel verifies that class Foo(m.Model) is treated as a
+// Django model when m is any module alias — the attribute name "Model" is
+// sufficient to seed the model set.
+func TestParseModels_AliasedModel(t *testing.T) {
+	src := []byte(`
+import django.db.models as m
+
+class Product(m.Model):
+    name = models.CharField(max_length=200)
+`)
+	fields, err := ParseModels(src)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	found := map[string]bool{}
+	for _, f := range fields {
+		found[f.Name] = true
+	}
+	if !found["name"] {
+		t.Error("expected 'name' field from class with aliased m.Model base")
+	}
+}
+
 // TestBuildModelSet_MultiHopTransitive verifies that A→B→C transitive chains are resolved.
 func TestBuildModelSet_MultiHopTransitive(t *testing.T) {
 	src := []byte(`

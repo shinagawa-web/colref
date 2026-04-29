@@ -32,9 +32,7 @@ var parseCtxFn = func(p *sitter.Parser, ctx context.Context, oldTree *sitter.Tre
 type classEntry struct {
 	name           string
 	isDirectDjango bool     // inherits directly from models.Model or bare Model
-	superNames     []string // bare-identifier superclass names for transitive lookup
-	node           *sitter.Node
-	src            []byte
+	superNames     []string // superclass names used for transitive lookup
 }
 
 // extractClassEntries returns all class entries from a parsed tree root node.
@@ -63,14 +61,22 @@ func extractClassEntries(root *sitter.Node, src []byte) []classEntry {
 						isDirectDjango = true
 					}
 				case "attribute":
-					obj := child.ChildByFieldName("object")
 					attr := child.ChildByFieldName("attribute")
-					if obj != nil && attr != nil && obj.Content(src) == "models" && attr.Content(src) == "Model" {
-						isDirectDjango = true
+					if attr != nil {
+						attrName := attr.Content(src)
+						if attrName == "Model" {
+							// Any x.Model base is treated as Django's Model
+							// (covers models.Model, m.Model, db.Model, etc.).
+							isDirectDjango = true
+							// Not added to superNames to avoid a phantom edge
+							// if a local class happens to be named "Model".
+						} else {
+							// Record the attribute name for transitive lookup so
+							// that module-qualified bases like
+							// core_models.ModelWithMetadata are resolved.
+							superNames = append(superNames, attrName)
+						}
 					}
-					// Do not add attr to superNames; attribute-style bases like
-					// models.Model are only used for seed detection, not
-					// transitive lookup.
 				}
 			}
 		}
@@ -79,8 +85,6 @@ func extractClassEntries(root *sitter.Node, src []byte) []classEntry {
 			name:           name,
 			isDirectDjango: isDirectDjango,
 			superNames:     superNames,
-			node:           node,
-			src:            src,
 		})
 	}
 	return entries
