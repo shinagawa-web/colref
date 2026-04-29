@@ -85,6 +85,7 @@ func TestE2E_Rails(t *testing.T) {
 		}
 		assertContains(t, out, "References found for User.email")
 		assertContains(t, out, "app/user.rb")
+		assertContains(t, out, "app/views/user.html.erb")
 	})
 
 	t.Run("NoRefs", func(t *testing.T) {
