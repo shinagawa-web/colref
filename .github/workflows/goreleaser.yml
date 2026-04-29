@@ -56,7 +56,7 @@ jobs:
           tar czf "colref_${VERSION}_${{ matrix.goos }}_${{ matrix.goarch }}.tar.gz" \
             colref LICENSE README.md
 
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         with:
           name: colref-${{ matrix.goos }}-${{ matrix.goarch }}
           path: "*.tar.gz"
