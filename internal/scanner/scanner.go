@@ -231,7 +231,13 @@ func erbToRuby(src []byte) []byte {
 				}
 				i++
 			} else if i+1 < len(src) && src[i] == '%' && src[i+1] == '>' {
-				out[i], out[i+1] = ' ', ' '
+				// Terminate the ERB block as a Ruby statement so two
+				// adjacent <%= a %> <%= b %> tags on the same source line
+				// don't collapse into a single ambiguous call when the
+				// surrounding HTML is converted to whitespace. Without the
+				// `;`, tree-sitter parses the second tag as a continuation
+				// of the first, dropping its `call` nodes (issue #64).
+				out[i], out[i+1] = ';', ' '
 				i += 2
 				inRuby = false
 			} else {

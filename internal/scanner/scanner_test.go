@@ -8,6 +8,7 @@ import (
 	"testing"
 
 	sitter "github.com/smacker/go-tree-sitter"
+	"github.com/smacker/go-tree-sitter/ruby"
 )
 
 func writeFile(t *testing.T, dir, name, content string) {
@@ -635,6 +636,72 @@ func TestRubyScanner_Methods(t *testing.T) {
 	}
 }
 
+// Regression for issue #64: when an ERB file packs two `<%= ... %>` tags on
+// the same source line, the second tag's attribute access used to be
+// dropped entirely — the previous erbToRuby converted both `<%` and `%>` to
+// whitespace, so two adjacent tags became one giant ambiguous Ruby
+// expression that tree-sitter couldn't classify as separate `call` nodes.
+//
+// We assert via the AST walker directly (not ScanRuby) because the scanner
+// dedupes references by line number — that dedupe is correct for
+// user-facing output but masks the underlying parse fix here.
+func TestScanRuby_TwoERBTagsSameLine_BothCallsParsed(t *testing.T) {
+	dir := t.TempDir()
+	src := []byte(`<%= t 'mailer.title', name: @resource.account.username %> <%= other.account.username %>
+`)
+	writeFile(t, dir, "welcome.text.erb", string(src))
+
+	converted := erbToRuby(src)
+	parser := sitter.NewParser()
+	parser.SetLanguage(ruby.GetLanguage())
+	tree, err := parser.ParseCtx(context.Background(), nil, converted)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var refs []Reference
+	walkNodeRuby(tree.RootNode(), converted, [][]byte{converted}, "username", "welcome.text.erb", &refs)
+	if len(refs) != 2 {
+		t.Fatalf("want 2 calls (one per ERB tag) reachable from the parse tree, got %d: %v", len(refs), refs)
+	}
+	if refs[0].Text != "@resource.account.username" {
+		t.Errorf("first call text = %q, want %q", refs[0].Text, "@resource.account.username")
+	}
+	if refs[1].Text != "other.account.username" {
+		t.Errorf("second call text = %q, want %q", refs[1].Text, "other.account.username")
+	}
+}
+
+// Regression for issue #64: keyword-arg method call without parentheses,
+// followed (across `do…end`) by an attribute access on the right-hand side
+// of `||`. Both attribute accesses must be reported.
+func TestScanRuby_KwargNoParensAndOrRHS(t *testing.T) {
+	dir := t.TempDir()
+	writeFile(t, dir, "welcome.text.erb", `<%= t 'mailer.title', name: @resource.account.username %>
+
+<%- @suggestions.each do |s| %>
+* <%= s.account.display_name.presence || s.account.username %>
+<%- end %>
+`)
+
+	refs, _, err := ScanRuby(dir, "username")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(refs) != 2 {
+		t.Fatalf("want 2 refs (line 1 kwarg, line 4 ||-RHS), got %d: %v", len(refs), refs)
+	}
+	gotLines := map[int]bool{}
+	for _, r := range refs {
+		gotLines[r.Line] = true
+	}
+	if !gotLines[1] {
+		t.Errorf("missing ref on line 1 (kwarg-no-parens): %v", refs)
+	}
+	if !gotLines[4] {
+		t.Errorf("missing ref on line 4 (||-RHS inside do-end block): %v", refs)
+	}
+}
+
 func TestScanRuby_SkipSpecDir(t *testing.T) {
 	dir := t.TempDir()
 	specDir := filepath.Join(dir, "spec")
@@ -891,22 +958,22 @@ func TestERBToRuby(t *testing.T) {
 		{
 			name:  "output tag content preserved",
 			input: "<%= user.email %>",
-			want:  "    user.email   ",
+			want:  "    user.email ; ",
 		},
 		{
 			name:  "non-output tag content preserved",
 			input: "<% user.email %>",
-			want:  "   user.email   ",
+			want:  "   user.email ; ",
 		},
 		{
 			name:  "dash modifier opening",
 			input: "<%= @user.email -%>",
-			want:  "    @user.email -  ",
+			want:  "    @user.email -; ",
 		},
 		{
 			name:  "dash modifier in opening tag (<%- )",
 			input: "<%- user.email %>",
-			want:  "    user.email   ",
+			want:  "    user.email ; ",
 		},
 		{
 			name:  "comment tag: content replaced with spaces",
@@ -921,7 +988,7 @@ func TestERBToRuby(t *testing.T) {
 		{
 			name:  "comment then expression",
 			input: "<%# x %><%= user.email %>",
-			want:  "            user.email   ",
+			want:  "            user.email ; ",
 		},
 		{
 			name:  "lone < not followed by % is replaced with space",
@@ -931,7 +998,7 @@ func TestERBToRuby(t *testing.T) {
 		{
 			name:  "ruby mode: lone % not followed by > is preserved",
 			input: "<% x = 5 % 2 %>",
-			want:  "   x = 5 % 2   ",
+			want:  "   x = 5 % 2 ; ",
 		},
 		{
 			name:  "empty input",
@@ -946,17 +1013,22 @@ func TestERBToRuby(t *testing.T) {
 		{
 			name:  "double-quoted string: %> inside is not a closing tag",
 			input: `<%= "%>" %>`,
-			want:  `    "%>"   `,
+			want:  `    "%>" ; `,
 		},
 		{
 			name:  "single-quoted string: %> inside is not a closing tag",
 			input: `<%= '%>' %>`,
-			want:  `    '%>'   `,
+			want:  `    '%>' ; `,
 		},
 		{
 			name:  "escaped quote inside string does not close string early",
 			input: "<%= \"a\\\"b\" %>",
-			want:  "    \"a\\\"b\"   ",
+			want:  "    \"a\\\"b\" ; ",
+		},
+		{
+			name:  "two adjacent ERB tags on same source line emit `; ` so each becomes a separate Ruby statement (issue #64)",
+			input: "<%= a %> <%= b %>",
+			want:  "    a ;      b ; ",
 		},
 	}
 
