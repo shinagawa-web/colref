@@ -137,6 +137,60 @@ func TestE2E_Rails(t *testing.T) {
 	})
 }
 
+func TestE2E_Django_ModelsPackage(t *testing.T) {
+	fixture := "fixtures/django-models-pkg"
+
+	t.Run("RefsFound", func(t *testing.T) {
+		out, err := run(t, "check", "--orm", "django", "--model", "User", "--field", "email", fixture)
+		if err != nil {
+			t.Fatalf("unexpected error: %v\noutput:\n%s", err, out)
+		}
+		assertContains(t, out, "References found for User.email")
+		assertContains(t, out, "accounts/views.py")
+	})
+
+	t.Run("NoRefs", func(t *testing.T) {
+		out, err := run(t, "check", "--orm", "django", "--model", "User", "--field", "name", fixture)
+		if err != nil {
+			t.Fatalf("unexpected error: %v\noutput:\n%s", err, out)
+		}
+		assertContains(t, out, "No references found for User.name")
+	})
+}
+
+func TestE2E_Django_Conflict(t *testing.T) {
+	out, err := run(t, "check", "--orm", "django", "--model", "User", "--field", "email", "fixtures/django-conflict")
+	if err == nil {
+		t.Fatal("expected non-zero exit for duplicate model definition")
+	}
+	assertContains(t, out, "multiple files")
+	assertContains(t, out, "app1/models.py")
+	assertContains(t, out, "app2/models.py")
+}
+
+func TestE2E_Rails_Migrations(t *testing.T) {
+	fixture := "fixtures/rails-migrations"
+
+	t.Run("AddColumnRefsFound", func(t *testing.T) {
+		// age is added via add_column, not present in create_table.
+		out, err := run(t, "check", "--orm", "rails", "--model", "User", "--field", "age", fixture)
+		if err != nil {
+			t.Fatalf("unexpected error: %v\noutput:\n%s", err, out)
+		}
+		assertContains(t, out, "References found for User.age")
+		assertContains(t, out, "app/user.rb")
+	})
+
+	t.Run("RemovedColumnNotFound", func(t *testing.T) {
+		// legacy_token was created in create_table but removed by remove_column.
+		out, err := run(t, "check", "--orm", "rails", "--model", "User", "--field", "legacy_token", fixture)
+		if err == nil {
+			t.Fatal("expected non-zero exit for removed column")
+		}
+		assertContains(t, out, `"legacy_token" not found`)
+	})
+}
+
 func TestE2E_UnknownOrm(t *testing.T) {
 	out, err := run(t, "check", "--orm", "typeorm", "--model", "User", "--field", "email", "fixtures/django")
 	if err == nil {
