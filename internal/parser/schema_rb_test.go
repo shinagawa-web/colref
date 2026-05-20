@@ -227,6 +227,12 @@ func TestTableToModel(t *testing.T) {
 		{"order_items", "OrderItem"},
 		{"admin_users", "AdminUser"},
 		{"data", "Data"},
+		{"statuses", "Status"},
+		{"scheduled_statuses", "ScheduledStatus"},
+		{"custom_filter_statuses", "CustomFilterStatus"},
+		{"boxes", "Box"},
+		{"churches", "Church"},
+		{"dishes", "Dish"},
 	}
 	for _, c := range cases {
 		got := tableToModel(c.table)
@@ -249,6 +255,12 @@ func TestSingularize(t *testing.T) {
 		{"data", "data"},
 		{"s", "s"},
 		{"ies", "ie"},
+		// -ses/-xes/-zes/-ches/-shes → strip -es
+		{"statuses", "status"},
+		{"boxes", "box"},
+		{"buzzes", "buzz"},
+		{"churches", "church"},
+		{"dishes", "dish"},
 	}
 	for _, c := range cases {
 		got := singularize(c.in)
