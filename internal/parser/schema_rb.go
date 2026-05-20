@@ -144,6 +144,10 @@ func singularize(word string) string {
 		return word[:len(word)-3] + "y"
 	case strings.HasSuffix(word, "sses"):
 		return word[:len(word)-2]
+	case strings.HasSuffix(word, "xes"), strings.HasSuffix(word, "zes"),
+		strings.HasSuffix(word, "ches"), strings.HasSuffix(word, "shes"),
+		strings.HasSuffix(word, "ses"):
+		return word[:len(word)-2]
 	case strings.HasSuffix(word, "s") && len(word) > 1:
 		return word[:len(word)-1]
 	default:
