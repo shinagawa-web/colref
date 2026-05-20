@@ -448,6 +448,51 @@ func TestRunCheck_Django_ModelsPackage_MixedLayout(t *testing.T) {
 	}
 }
 
+func TestRunCheck_Django_AbstractModels_Basic(t *testing.T) {
+	dir := t.TempDir()
+	app := filepath.Join(dir, "catalogue")
+	if err := os.MkdirAll(app, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	abstractContent := "from django.db import models\nclass AbstractProductClass(models.Model):\n    name = models.CharField(max_length=255)\n    class Meta:\n        abstract = True\n"
+	modelsContent := "from catalogue.abstract_models import AbstractProductClass\nclass ProductClass(AbstractProductClass):\n    pass\n"
+	viewContent := "def show(p): return p.name\n"
+	for _, f := range []struct{ path, content string }{
+		{filepath.Join(app, "abstract_models.py"), abstractContent},
+		{filepath.Join(app, "models.py"), modelsContent},
+		{filepath.Join(dir, "catalogue", "views.py"), viewContent},
+	} {
+		if err := os.WriteFile(f.path, []byte(f.content), 0o644); err != nil {
+			t.Fatal(err)
+		}
+	}
+	// Fields are declared on AbstractProductClass; users query the abstract class directly.
+	if err := runCheck(dir, "AbstractProductClass", "name", "django"); err != nil {
+		t.Fatalf("abstract_models.py pattern: %v", err)
+	}
+}
+
+func TestRunCheck_Django_AbstractModels_OnlyAbstractFile(t *testing.T) {
+	dir := t.TempDir()
+	app := filepath.Join(dir, "catalogue")
+	if err := os.MkdirAll(app, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	abstractContent := "from django.db import models\nclass AbstractProduct(models.Model):\n    slug = models.SlugField()\n    class Meta:\n        abstract = True\n"
+	viewContent := "def show(p): return p.slug\n"
+	for _, f := range []struct{ path, content string }{
+		{filepath.Join(app, "abstract_models.py"), abstractContent},
+		{filepath.Join(dir, "catalogue", "views.py"), viewContent},
+	} {
+		if err := os.WriteFile(f.path, []byte(f.content), 0o644); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if err := runCheck(dir, "AbstractProduct", "slug", "django"); err != nil {
+		t.Fatalf("abstract_models.py only: %v", err)
+	}
+}
+
 func TestRunCheck_Django_ModelsPackage_SkipHiddenDir(t *testing.T) {
 	dir := t.TempDir()
 	hiddenModels := filepath.Join(dir, ".venv", "zerver", "models")
