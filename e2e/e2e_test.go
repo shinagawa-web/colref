@@ -158,6 +158,27 @@ func TestE2E_Django_ModelsPackage(t *testing.T) {
 	})
 }
 
+func TestE2E_Django_AbstractModels(t *testing.T) {
+	fixture := "fixtures/django-abstract-models"
+
+	t.Run("RefsFound", func(t *testing.T) {
+		out, err := run(t, "check", "--orm", "django", "--model", "AbstractProductClass", "--field", "name", fixture)
+		if err != nil {
+			t.Fatalf("unexpected error: %v\noutput:\n%s", err, out)
+		}
+		assertContains(t, out, "References found for AbstractProductClass.name")
+		assertContains(t, out, "catalogue/views.py")
+	})
+
+	t.Run("NoRefs", func(t *testing.T) {
+		out, err := run(t, "check", "--orm", "django", "--model", "AbstractProductClass", "--field", "slug", fixture)
+		if err != nil {
+			t.Fatalf("unexpected error: %v\noutput:\n%s", err, out)
+		}
+		assertContains(t, out, "No references found for AbstractProductClass.slug")
+	})
+}
+
 func TestE2E_Django_Conflict(t *testing.T) {
 	out, err := run(t, "check", "--orm", "django", "--model", "User", "--field", "email", "fixtures/django-conflict")
 	if err == nil {
