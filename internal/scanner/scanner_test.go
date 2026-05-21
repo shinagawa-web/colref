@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 
 	sitter "github.com/smacker/go-tree-sitter"
@@ -502,7 +503,7 @@ func TestPythonScanner_Methods(t *testing.T) {
 
 func TestScan_FExpression_NotDetected(t *testing.T) {
 	dir := t.TempDir()
-	// v0.1 limitation: F('email') passes the column as a string.
+	// Attribute-only scan: F('email') passes the column as a string, not detected.
 	writeFile(t, dir, "views.py", `from django.db.models import F; User.objects.update(email=F("email"))`)
 
 	refs, _, err := Scan(dir, "email")
@@ -510,7 +511,289 @@ func TestScan_FExpression_NotDetected(t *testing.T) {
 		t.Fatal(err)
 	}
 	if len(refs) != 0 {
-		t.Errorf("F() expression should not be detected in v0.1, got %d: %v", len(refs), refs)
+		t.Errorf("F() expression should not be detected by attribute scan, got %d: %v", len(refs), refs)
+	}
+}
+
+// --- ScanStringRefs tests ---
+
+func TestScanStringRefs_FilterKwarg(t *testing.T) {
+	dir := t.TempDir()
+	writeFile(t, dir, "views.py", `qs = User.objects.filter(email="x@example.com")`)
+
+	refs, _, err := ScanStringRefs(dir, "email")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(refs) != 1 {
+		t.Fatalf("want 1 ref for filter kwarg, got %d: %v", len(refs), refs)
+	}
+	if refs[0].Line != 1 {
+		t.Errorf("want line 1, got %d", refs[0].Line)
+	}
+	if !strings.HasPrefix(refs[0].Text, "[string] ") {
+		t.Errorf("want [string] prefix, got %q", refs[0].Text)
+	}
+}
+
+func TestScanStringRefs_FilterKwargLookup(t *testing.T) {
+	dir := t.TempDir()
+	// email__icontains → strip lookup suffix → "email"
+	writeFile(t, dir, "views.py", `qs = User.objects.filter(email__icontains="x")`)
+
+	refs, _, err := ScanStringRefs(dir, "email")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(refs) != 1 {
+		t.Fatalf("want 1 ref for filter kwarg with lookup, got %d: %v", len(refs), refs)
+	}
+}
+
+func TestScanStringRefs_ExcludeKwarg(t *testing.T) {
+	dir := t.TempDir()
+	writeFile(t, dir, "views.py", `qs = User.objects.exclude(email="x")`)
+
+	refs, _, err := ScanStringRefs(dir, "email")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(refs) != 1 {
+		t.Fatalf("want 1 ref for exclude kwarg, got %d: %v", len(refs), refs)
+	}
+}
+
+func TestScanStringRefs_ValuesListString(t *testing.T) {
+	dir := t.TempDir()
+	writeFile(t, dir, "views.py", `qs = User.objects.values_list("email", flat=True)`)
+
+	refs, _, err := ScanStringRefs(dir, "email")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(refs) != 1 {
+		t.Fatalf("want 1 ref for values_list string, got %d: %v", len(refs), refs)
+	}
+}
+
+func TestScanStringRefs_ValuesString(t *testing.T) {
+	dir := t.TempDir()
+	writeFile(t, dir, "views.py", `qs = User.objects.values("email", "name")`)
+
+	refs, _, err := ScanStringRefs(dir, "email")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(refs) != 1 {
+		t.Fatalf("want 1 ref for values() string arg, got %d: %v", len(refs), refs)
+	}
+}
+
+func TestScanStringRefs_DeferOnly(t *testing.T) {
+	dir := t.TempDir()
+	writeFile(t, dir, "views.py", `
+qs1 = User.objects.defer("email")
+qs2 = User.objects.only("email")
+`)
+
+	refs, _, err := ScanStringRefs(dir, "email")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(refs) != 2 {
+		t.Fatalf("want 2 refs for defer+only, got %d: %v", len(refs), refs)
+	}
+}
+
+func TestScanStringRefs_OrderBy(t *testing.T) {
+	dir := t.TempDir()
+	writeFile(t, dir, "views.py", `qs = User.objects.order_by("email")`)
+
+	refs, _, err := ScanStringRefs(dir, "email")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(refs) != 1 {
+		t.Fatalf("want 1 ref for order_by, got %d: %v", len(refs), refs)
+	}
+}
+
+func TestScanStringRefs_QObject(t *testing.T) {
+	dir := t.TempDir()
+	writeFile(t, dir, "views.py", `from django.db.models import Q; qs = User.objects.filter(Q(email="x"))`)
+
+	refs, _, err := ScanStringRefs(dir, "email")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(refs) != 1 {
+		t.Fatalf("want 1 ref for Q() kwarg, got %d: %v", len(refs), refs)
+	}
+}
+
+func TestScanStringRefs_FExpression(t *testing.T) {
+	dir := t.TempDir()
+	writeFile(t, dir, "views.py", `from django.db.models import F; qs = User.objects.filter(score=F("email"))`)
+
+	refs, _, err := ScanStringRefs(dir, "email")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(refs) != 1 {
+		t.Fatalf("want 1 ref for F() expression, got %d: %v", len(refs), refs)
+	}
+}
+
+func TestScanStringRefs_GetAttrNotDetected(t *testing.T) {
+	dir := t.TempDir()
+	// getattr() is not a Django ORM method — should not be detected.
+	writeFile(t, dir, "views.py", `v = getattr(user, "email")`)
+
+	refs, _, err := ScanStringRefs(dir, "email")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(refs) != 0 {
+		t.Errorf("getattr() should not be detected by ScanStringRefs, got %d: %v", len(refs), refs)
+	}
+}
+
+func TestScanStringRefs_NoMatchOtherField(t *testing.T) {
+	dir := t.TempDir()
+	writeFile(t, dir, "views.py", `qs = User.objects.filter(name="Alice")`)
+
+	refs, _, err := ScanStringRefs(dir, "email")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(refs) != 0 {
+		t.Errorf("filter on different field should not match, got %d: %v", len(refs), refs)
+	}
+}
+
+func TestScanStringRefs_StringLabel(t *testing.T) {
+	dir := t.TempDir()
+	writeFile(t, dir, "views.py", `qs = User.objects.values("email")`)
+
+	refs, _, err := ScanStringRefs(dir, "email")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(refs) != 1 {
+		t.Fatalf("want 1 ref, got %d", len(refs))
+	}
+	if !strings.HasPrefix(refs[0].Text, "[string] ") {
+		t.Errorf("want [string] prefix, got %q", refs[0].Text)
+	}
+}
+
+// --- ScanDjango tests ---
+
+func TestScanDjango_MergesAttrAndString(t *testing.T) {
+	dir := t.TempDir()
+	writeFile(t, dir, "views.py", `
+x = user.email
+qs = User.objects.filter(email="x@example.com")
+`)
+
+	refs, count, err := ScanDjango(dir, "email")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if count != 1 {
+		t.Errorf("want 1 file scanned, got %d", count)
+	}
+	if len(refs) != 2 {
+		t.Fatalf("want 2 refs (attr + string), got %d: %v", len(refs), refs)
+	}
+	// Results should be sorted by line; attr ref is line 2, string ref is line 3.
+	if refs[0].Line != 2 || refs[1].Line != 3 {
+		t.Errorf("want lines [2,3], got [%d,%d]", refs[0].Line, refs[1].Line)
+	}
+	if strings.HasPrefix(refs[0].Text, "[string]") {
+		t.Errorf("first ref (attr) should not have [string] prefix, got %q", refs[0].Text)
+	}
+	if !strings.HasPrefix(refs[1].Text, "[string] ") {
+		t.Errorf("second ref (string) should have [string] prefix, got %q", refs[1].Text)
+	}
+}
+
+func TestScanDjango_SortedByFileLine(t *testing.T) {
+	dir := t.TempDir()
+	writeFile(t, dir, "a.py", `qs = User.objects.filter(email="x")`)
+	writeFile(t, dir, "b.py", `x = user.email`)
+
+	refs, _, err := ScanDjango(dir, "email")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(refs) != 2 {
+		t.Fatalf("want 2 refs, got %d: %v", len(refs), refs)
+	}
+	if refs[0].File > refs[1].File {
+		t.Errorf("want sorted by file: got %q before %q", refs[0].File, refs[1].File)
+	}
+}
+
+func TestScanDjango_ScanError(t *testing.T) {
+	orig := parseCtxFn
+	t.Cleanup(func() { parseCtxFn = orig })
+	parseCtxFn = func(_ *sitter.Parser, _ context.Context, _ *sitter.Tree, _ []byte) (*sitter.Tree, error) {
+		return nil, fmt.Errorf("injected scan error")
+	}
+	dir := t.TempDir()
+	writeFile(t, dir, "views.py", `x = user.email`)
+	_, _, err := ScanDjango(dir, "email")
+	if err == nil {
+		t.Fatal("expected error from Scan, got nil")
+	}
+}
+
+func TestScanDjango_StringRefsError(t *testing.T) {
+	call := 0
+	orig := parseCtxFn
+	t.Cleanup(func() { parseCtxFn = orig })
+	parseCtxFn = func(p *sitter.Parser, ctx context.Context, oldTree *sitter.Tree, src []byte) (*sitter.Tree, error) {
+		call++
+		if call <= 1 {
+			return orig(p, ctx, oldTree, src)
+		}
+		return nil, fmt.Errorf("injected string refs error")
+	}
+	dir := t.TempDir()
+	writeFile(t, dir, "views.py", `x = user.email`)
+	_, _, err := ScanDjango(dir, "email")
+	if err == nil {
+		t.Fatal("expected error from ScanStringRefs, got nil")
+	}
+}
+
+func TestScanStringRefs_SubscriptCallNoMatch(t *testing.T) {
+	dir := t.TempDir()
+	// Subscript call: function node type is "subscript", not attribute/identifier.
+	// callMethodName returns "" → no known ORM method → no refs emitted.
+	writeFile(t, dir, "views.py", `funcs[0]("email")`)
+
+	refs, _, err := ScanStringRefs(dir, "email")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(refs) != 0 {
+		t.Errorf("subscript call should not produce refs, got %d: %v", len(refs), refs)
+	}
+}
+
+func TestScanStringRefs_EmptyStringArgNoMatch(t *testing.T) {
+	dir := t.TempDir()
+	// Empty string arg: stringContent returns "" which doesn't match fieldName.
+	writeFile(t, dir, "views.py", `qs = User.objects.values("")`)
+
+	refs, _, err := ScanStringRefs(dir, "email")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(refs) != 0 {
+		t.Errorf("empty string arg should not match, got %d: %v", len(refs), refs)
 	}
 }
 

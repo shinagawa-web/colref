@@ -138,7 +138,7 @@ func runCheckDjango(dir, modelName, fieldName string) error {
 		allFields = append(allFields, pf.fields...)
 	}
 
-	return runCheckFields(dir, modelName, fieldName, allFields, scanner.Scan)
+	return runCheckFields(dir, modelName, fieldName, allFields, scanner.ScanDjango)
 }
 
 func runCheckFields(dir, modelName, fieldName string, allFields []parser.Field, scan func(string, string) ([]scanner.Reference, int, error)) error {
@@ -169,7 +169,6 @@ func runScan(dir, modelName, fieldName string, scan func(string, string) ([]scan
 
 	if len(refs) == 0 {
 		fmt.Printf("No references found for %s.%s\n\n", modelName, fieldName)
-		fmt.Printf("  String-based ORM calls (e.g. .values(), .defer()) are not detected.\n")
 		fmt.Printf("  Verify manually before deleting.\n")
 		return nil
 	}
