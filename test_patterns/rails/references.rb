@@ -1,8 +1,11 @@
 # Synthetic pattern battery for Article#title field reference detection.
-# Each pattern is on its own line for precise line-level verification.
-# Wrapped in a method so this file is safe to load without side effects.
+# Some patterns span multiple lines (e.g. multi-line chain).
+# Wrapped in `if false` so this file is safe to load without side effects.
 
-def _patterns(article, value)
+if false
+  article = nil
+  value   = nil
+
   # ── Attribute access — read ─────────────────────────────────────────────────
   x = article.title                                     # direct access
   x = Article.find(1).title                             # chained call
