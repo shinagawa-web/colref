@@ -2,6 +2,7 @@
 Synthetic pattern battery for Article.title field reference detection.
 Each pattern is on its own line for precise line-level verification.
 """
+from django.contrib import admin
 from django.db.models import F, Q, Max, Value, OuterRef
 from django.db.models.functions import Coalesce, Concat
 import operator
@@ -46,7 +47,7 @@ qs = Article.objects.only('title')                      # only
 qs = Article.objects.defer('title')                     # defer
 qs = Article.objects.order_by('title')                  # order_by asc
 qs = Article.objects.order_by('-title')                 # order_by desc
-qs = Article.objects.select_related('title')            # select_related
+qs = Article.objects.select_related('author')           # select_related (FK field)
 obj = Article.objects.latest('title')                   # latest
 obj = Article.objects.earliest('title')                 # earliest
 qs = Article.objects.distinct('title')                  # distinct (PostgreSQL)
@@ -70,12 +71,13 @@ x = vars(article)['title']                              # vars() subscript
 x = article.__dict__['title']                          # __dict__ subscript
 
 # ── Django admin ─────────────────────────────────────────────────────────────
-list_display = ['title']                                # list_display
-list_filter = ['title']                                 # list_filter
-search_fields = ['title']                               # search_fields
-readonly_fields = ['title']                             # readonly_fields
-fieldsets = (None, {'fields': ['title']})               # fieldsets
-ordering = ['title']                                    # ordering
+class ArticleAdmin(admin.ModelAdmin):
+    list_display = ['title']                            # list_display
+    list_filter = ['title']                             # list_filter
+    search_fields = ['title']                           # search_fields
+    readonly_fields = ['title']                         # readonly_fields
+    fieldsets = (None, {'fields': ['title']})           # fieldsets
+    ordering = ['title']                                # ordering
 
 # ── Django REST Framework ─────────────────────────────────────────────────────
 fields = ['title', 'slug']                              # Meta.fields list
