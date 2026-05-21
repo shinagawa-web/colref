@@ -27,6 +27,16 @@ jobs:
       - name: Run tests
         run: go test -race -coverprofile=coverage.out $(go list ./... | grep -v /e2e)
 
+      - name: Enforce coverage threshold
+        run: |
+          total=$(go tool cover -func=coverage.out | grep '^total' | awk '{print $3}' | tr -d '%')
+          echo "Total coverage: ${total}%"
+          if ! awk "BEGIN { exit !(${total} >= 100) }"; then
+            echo "FAIL: coverage ${total}% is below threshold 100%"
+            exit 1
+          fi
+          echo "Coverage OK."
+
       - name: Upload coverage to Codecov
         uses: codecov/codecov-action@v4
         with:
