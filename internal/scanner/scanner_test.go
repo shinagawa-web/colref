@@ -618,6 +618,19 @@ func TestScanStringRefs_OrderBy(t *testing.T) {
 	}
 }
 
+func TestScanStringRefs_OrderByDescending(t *testing.T) {
+	dir := t.TempDir()
+	writeFile(t, dir, "views.py", `qs = User.objects.order_by("-email")`)
+
+	refs, _, err := ScanStringRefs(dir, "email")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(refs) != 1 {
+		t.Fatalf("want 1 ref for order_by descending, got %d: %v", len(refs), refs)
+	}
+}
+
 func TestScanStringRefs_QObject(t *testing.T) {
 	dir := t.TempDir()
 	writeFile(t, dir, "views.py", `from django.db.models import Q; qs = User.objects.filter(Q(email="x"))`)

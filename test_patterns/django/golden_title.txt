@@ -20,5 +20,6 @@ References found for Article.title
   references.py:62   [string] qs = Article.objects.only('title')                     # only
   references.py:63   [string] qs = Article.objects.defer('title')                    # defer
   references.py:64   [string] qs = Article.objects.order_by('title')                 # order_by asc
+  references.py:65   [string] qs = Article.objects.order_by('-title')                # order_by desc
   references.py:74   [string] expr = F('title')                                       # F()
   references.py:75   [string] qs = Article.objects.annotate(t=F('title'))            # annotate with F
