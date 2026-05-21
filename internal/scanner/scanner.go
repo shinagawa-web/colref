@@ -339,8 +339,14 @@ func walkNodeStringRefs(node *sitter.Node, src []byte, lines [][]byte, fieldName
 				case positionalStringMethods[methodName]:
 					for i := 0; i < int(args.ChildCount()); i++ {
 						child := args.Child(i)
-						if child.Type() == "string" && strings.TrimPrefix(stringContent(child, src), "-") == fieldName {
-							addStringRef(child, lines, file, refs)
+						if child.Type() == "string" {
+							content := stringContent(child, src)
+							if methodName == "order_by" {
+								content = strings.TrimPrefix(content, "-")
+							}
+							if content == fieldName {
+								addStringRef(child, lines, file, refs)
+							}
 						}
 					}
 				case keywordArgMethods[methodName]:
