@@ -6,7 +6,7 @@ def _patterns(article, value)
   # ── Attribute access — read ─────────────────────────────────────────────────
   x = article.title                                     # direct access
   x = Article.find(1).title                             # chained call
-  x = Article.where(published: true)
+  x = Article.where(status: 'published')
              .first
              .title                                     # multi-line chain
   x = "#{article.title}"                                # string interpolation
@@ -66,7 +66,7 @@ def _patterns(article, value)
 
   # ── Serialization / presentation ─────────────────────────────────────────────
   params.require(:article).permit(:title, :slug)        # strong params permit
-  attributes :title, :slug                              # AMS attributes
+  # AMS attributes: see app/serializers/article_serializer.rb
 
   # ── Dynamic / metaprogramming ─────────────────────────────────────────────────
   article.respond_to?(:title)                           # respond_to?
