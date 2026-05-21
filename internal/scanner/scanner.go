@@ -92,12 +92,14 @@ func Scan(dir, fieldName string) ([]Reference, int, error) {
 var positionalStringMethods = map[string]bool{
 	"values": true, "values_list": true, "defer": true, "only": true,
 	"order_by": true, "select_related": true, "prefetch_related": true,
+	"latest": true, "earliest": true, "distinct": true,
 }
 
 // keywordArgMethods are Django ORM methods (and Q) whose keyword argument names
 // refer to model fields (possibly with lookup suffixes like __icontains).
 var keywordArgMethods = map[string]bool{
 	"filter": true, "exclude": true, "annotate": true, "Q": true,
+	"get": true, "create": true, "update": true, "get_or_create": true,
 }
 
 // ScanStringRefs walks dir and returns every string-based Django ORM reference

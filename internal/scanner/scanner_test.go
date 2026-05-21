@@ -810,6 +810,139 @@ func TestScanStringRefs_EmptyStringArgNoMatch(t *testing.T) {
 	}
 }
 
+func TestScanStringRefs_Get(t *testing.T) {
+	dir := t.TempDir()
+	writeFile(t, dir, "views.py", `obj = User.objects.get(email='x')`)
+
+	refs, _, err := ScanStringRefs(dir, "email")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(refs) != 1 {
+		t.Fatalf("want 1 ref for get(), got %d: %v", len(refs), refs)
+	}
+	if refs[0].Line != 1 {
+		t.Errorf("want line 1, got %d", refs[0].Line)
+	}
+	if !strings.HasPrefix(refs[0].Text, "[string] ") {
+		t.Errorf("want [string] prefix, got %q", refs[0].Text)
+	}
+}
+
+func TestScanStringRefs_Create(t *testing.T) {
+	dir := t.TempDir()
+	writeFile(t, dir, "views.py", `obj = User.objects.create(email='x')`)
+
+	refs, _, err := ScanStringRefs(dir, "email")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(refs) != 1 {
+		t.Fatalf("want 1 ref for create(), got %d: %v", len(refs), refs)
+	}
+	if refs[0].Line != 1 {
+		t.Errorf("want line 1, got %d", refs[0].Line)
+	}
+	if !strings.HasPrefix(refs[0].Text, "[string] ") {
+		t.Errorf("want [string] prefix, got %q", refs[0].Text)
+	}
+}
+
+func TestScanStringRefs_Update(t *testing.T) {
+	dir := t.TempDir()
+	writeFile(t, dir, "views.py", `User.objects.update(email='x')`)
+
+	refs, _, err := ScanStringRefs(dir, "email")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(refs) != 1 {
+		t.Fatalf("want 1 ref for update(), got %d: %v", len(refs), refs)
+	}
+	if refs[0].Line != 1 {
+		t.Errorf("want line 1, got %d", refs[0].Line)
+	}
+	if !strings.HasPrefix(refs[0].Text, "[string] ") {
+		t.Errorf("want [string] prefix, got %q", refs[0].Text)
+	}
+}
+
+func TestScanStringRefs_GetOrCreate(t *testing.T) {
+	dir := t.TempDir()
+	writeFile(t, dir, "views.py", `obj, _ = User.objects.get_or_create(email='x')`)
+
+	refs, _, err := ScanStringRefs(dir, "email")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(refs) != 1 {
+		t.Fatalf("want 1 ref for get_or_create(), got %d: %v", len(refs), refs)
+	}
+	if refs[0].Line != 1 {
+		t.Errorf("want line 1, got %d", refs[0].Line)
+	}
+	if !strings.HasPrefix(refs[0].Text, "[string] ") {
+		t.Errorf("want [string] prefix, got %q", refs[0].Text)
+	}
+}
+
+func TestScanStringRefs_Latest(t *testing.T) {
+	dir := t.TempDir()
+	writeFile(t, dir, "views.py", `obj = Article.objects.latest('title')`)
+
+	refs, _, err := ScanStringRefs(dir, "title")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(refs) != 1 {
+		t.Fatalf("want 1 ref for latest(), got %d: %v", len(refs), refs)
+	}
+	if refs[0].Line != 1 {
+		t.Errorf("want line 1, got %d", refs[0].Line)
+	}
+	if !strings.HasPrefix(refs[0].Text, "[string] ") {
+		t.Errorf("want [string] prefix, got %q", refs[0].Text)
+	}
+}
+
+func TestScanStringRefs_Earliest(t *testing.T) {
+	dir := t.TempDir()
+	writeFile(t, dir, "views.py", `obj = Article.objects.earliest('title')`)
+
+	refs, _, err := ScanStringRefs(dir, "title")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(refs) != 1 {
+		t.Fatalf("want 1 ref for earliest(), got %d: %v", len(refs), refs)
+	}
+	if refs[0].Line != 1 {
+		t.Errorf("want line 1, got %d", refs[0].Line)
+	}
+	if !strings.HasPrefix(refs[0].Text, "[string] ") {
+		t.Errorf("want [string] prefix, got %q", refs[0].Text)
+	}
+}
+
+func TestScanStringRefs_Distinct(t *testing.T) {
+	dir := t.TempDir()
+	writeFile(t, dir, "views.py", `qs = Article.objects.distinct('title')`)
+
+	refs, _, err := ScanStringRefs(dir, "title")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(refs) != 1 {
+		t.Fatalf("want 1 ref for distinct(), got %d: %v", len(refs), refs)
+	}
+	if refs[0].Line != 1 {
+		t.Errorf("want line 1, got %d", refs[0].Line)
+	}
+	if !strings.HasPrefix(refs[0].Text, "[string] ") {
+		t.Errorf("want [string] prefix, got %q", refs[0].Text)
+	}
+}
+
 func TestScanRuby_BasicMatch(t *testing.T) {
 	dir := t.TempDir()
 	writeFile(t, dir, "app.rb", `

@@ -13,6 +13,8 @@ References found for Article.title
   references.py:50   [string] qs = Article.objects.filter(title='x')                 # filter keyword
   references.py:51   [string] qs = Article.objects.filter(title__icontains='x')      # filter lookup
   references.py:52   [string] qs = Article.objects.exclude(title='x')                # exclude
+  references.py:53   [string] obj = Article.objects.get(title='x')                   # get
+  references.py:54   [string] obj, _ = Article.objects.get_or_create(title='x')      # get_or_create
   references.py:56   [string] qs = Article.objects.filter(Q(title='x'))              # Q()
   references.py:57   [string] qs = Article.objects.filter(Q(title__in=['x']))        # Q() with lookup
   references.py:60   [string] qs = Article.objects.values('title')                   # values
@@ -21,5 +23,10 @@ References found for Article.title
   references.py:63   [string] qs = Article.objects.defer('title')                    # defer
   references.py:64   [string] qs = Article.objects.order_by('title')                 # order_by asc
   references.py:65   [string] qs = Article.objects.order_by('-title')                # order_by desc
+  references.py:67   [string] obj = Article.objects.latest('title')                  # latest
+  references.py:68   [string] obj = Article.objects.earliest('title')                # earliest
+  references.py:69   [string] qs = Article.objects.distinct('title')                 # distinct (PostgreSQL)
+  references.py:70   [string] obj = Article.objects.create(title='x')                # create
+  references.py:71   [string] Article.objects.update(title='x')                      # update (bulk)
   references.py:74   [string] expr = F('title')                                       # F()
   references.py:75   [string] qs = Article.objects.annotate(t=F('title'))            # annotate with F
