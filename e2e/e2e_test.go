@@ -248,7 +248,10 @@ func TestE2E_MissingFlags(t *testing.T) {
 }
 
 func TestE2E_PatternBattery_Django(t *testing.T) {
-	out, _ := run(t, "check", "--orm", "django", "--model", "Article", "--field", "title", "../test_patterns/django")
+	out, err := run(t, "check", "--orm", "django", "--model", "Article", "--field", "title", "../test_patterns/django")
+	if err != nil {
+		t.Fatalf("unexpected error: %v\noutput:\n%s", err, out)
+	}
 	golden, err := os.ReadFile("../test_patterns/django/golden_title.txt")
 	if err != nil {
 		t.Fatalf("failed to read golden file: %v", err)
@@ -259,7 +262,10 @@ func TestE2E_PatternBattery_Django(t *testing.T) {
 }
 
 func TestE2E_PatternBattery_Rails(t *testing.T) {
-	out, _ := run(t, "check", "--orm", "rails", "--model", "Article", "--field", "title", "../test_patterns/rails")
+	out, err := run(t, "check", "--orm", "rails", "--model", "Article", "--field", "title", "../test_patterns/rails")
+	if err != nil {
+		t.Fatalf("unexpected error: %v\noutput:\n%s", err, out)
+	}
 	golden, err := os.ReadFile("../test_patterns/rails/golden_title.txt")
 	if err != nil {
 		t.Fatalf("failed to read golden file: %v", err)
