@@ -1,0 +1,24 @@
+Scanning 2 files...
+
+References found for Article.title
+
+  references.py:30   article.title
+  references.py:31   qs.first().title
+  references.py:34   .title)                                            # multi-line chain
+  references.py:35   article.title
+  references.py:36   article.title
+  references.py:37   a.title
+  references.py:40   article.title
+  references.py:41   article.title
+  references.py:50   [string] qs = Article.objects.filter(title='x')                 # filter keyword
+  references.py:51   [string] qs = Article.objects.filter(title__icontains='x')      # filter lookup
+  references.py:52   [string] qs = Article.objects.exclude(title='x')                # exclude
+  references.py:56   [string] qs = Article.objects.filter(Q(title='x'))              # Q()
+  references.py:57   [string] qs = Article.objects.filter(Q(title__in=['x']))        # Q() with lookup
+  references.py:60   [string] qs = Article.objects.values('title')                   # values
+  references.py:61   [string] qs = Article.objects.values_list('title', flat=True)   # values_list
+  references.py:62   [string] qs = Article.objects.only('title')                     # only
+  references.py:63   [string] qs = Article.objects.defer('title')                    # defer
+  references.py:64   [string] qs = Article.objects.order_by('title')                 # order_by asc
+  references.py:74   [string] expr = F('title')                                       # F()
+  references.py:75   [string] qs = Article.objects.annotate(t=F('title'))            # annotate with F
