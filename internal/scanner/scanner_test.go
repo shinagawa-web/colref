@@ -821,6 +821,12 @@ func TestScanStringRefs_Get(t *testing.T) {
 	if len(refs) != 1 {
 		t.Fatalf("want 1 ref for get(), got %d: %v", len(refs), refs)
 	}
+	if refs[0].Line != 1 {
+		t.Errorf("want line 1, got %d", refs[0].Line)
+	}
+	if !strings.HasPrefix(refs[0].Text, "[string] ") {
+		t.Errorf("want [string] prefix, got %q", refs[0].Text)
+	}
 }
 
 func TestScanStringRefs_Create(t *testing.T) {
@@ -833,6 +839,12 @@ func TestScanStringRefs_Create(t *testing.T) {
 	}
 	if len(refs) != 1 {
 		t.Fatalf("want 1 ref for create(), got %d: %v", len(refs), refs)
+	}
+	if refs[0].Line != 1 {
+		t.Errorf("want line 1, got %d", refs[0].Line)
+	}
+	if !strings.HasPrefix(refs[0].Text, "[string] ") {
+		t.Errorf("want [string] prefix, got %q", refs[0].Text)
 	}
 }
 
@@ -847,6 +859,12 @@ func TestScanStringRefs_Update(t *testing.T) {
 	if len(refs) != 1 {
 		t.Fatalf("want 1 ref for update(), got %d: %v", len(refs), refs)
 	}
+	if refs[0].Line != 1 {
+		t.Errorf("want line 1, got %d", refs[0].Line)
+	}
+	if !strings.HasPrefix(refs[0].Text, "[string] ") {
+		t.Errorf("want [string] prefix, got %q", refs[0].Text)
+	}
 }
 
 func TestScanStringRefs_GetOrCreate(t *testing.T) {
@@ -859,6 +877,12 @@ func TestScanStringRefs_GetOrCreate(t *testing.T) {
 	}
 	if len(refs) != 1 {
 		t.Fatalf("want 1 ref for get_or_create(), got %d: %v", len(refs), refs)
+	}
+	if refs[0].Line != 1 {
+		t.Errorf("want line 1, got %d", refs[0].Line)
+	}
+	if !strings.HasPrefix(refs[0].Text, "[string] ") {
+		t.Errorf("want [string] prefix, got %q", refs[0].Text)
 	}
 }
 
@@ -873,6 +897,12 @@ func TestScanStringRefs_Latest(t *testing.T) {
 	if len(refs) != 1 {
 		t.Fatalf("want 1 ref for latest(), got %d: %v", len(refs), refs)
 	}
+	if refs[0].Line != 1 {
+		t.Errorf("want line 1, got %d", refs[0].Line)
+	}
+	if !strings.HasPrefix(refs[0].Text, "[string] ") {
+		t.Errorf("want [string] prefix, got %q", refs[0].Text)
+	}
 }
 
 func TestScanStringRefs_Earliest(t *testing.T) {
@@ -886,6 +916,12 @@ func TestScanStringRefs_Earliest(t *testing.T) {
 	if len(refs) != 1 {
 		t.Fatalf("want 1 ref for earliest(), got %d: %v", len(refs), refs)
 	}
+	if refs[0].Line != 1 {
+		t.Errorf("want line 1, got %d", refs[0].Line)
+	}
+	if !strings.HasPrefix(refs[0].Text, "[string] ") {
+		t.Errorf("want [string] prefix, got %q", refs[0].Text)
+	}
 }
 
 func TestScanStringRefs_Distinct(t *testing.T) {
@@ -898,6 +934,12 @@ func TestScanStringRefs_Distinct(t *testing.T) {
 	}
 	if len(refs) != 1 {
 		t.Fatalf("want 1 ref for distinct(), got %d: %v", len(refs), refs)
+	}
+	if refs[0].Line != 1 {
+		t.Errorf("want line 1, got %d", refs[0].Line)
+	}
+	if !strings.HasPrefix(refs[0].Text, "[string] ") {
+		t.Errorf("want [string] prefix, got %q", refs[0].Text)
 	}
 }
 
