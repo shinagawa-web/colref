@@ -31,3 +31,17 @@ jobs:
         uses: codecov/codecov-action@v4
         with:
           files: coverage.out
+
+  e2e:
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+          cache: true
+
+      - name: Run e2e tests
+        run: make test-e2e
