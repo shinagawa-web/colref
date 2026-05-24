@@ -123,7 +123,42 @@ func walkNodeRuby(node *sitter.Node, src []byte, lines [][]byte, fieldName, file
 }
 
 // walkNodeRubyStringRefs finds string-based ActiveRecord references to fieldName.
+// It pre-collects the source rows of heredoc_beginning nodes inside rubySqlMethods
+// calls so that the heredoc_body handler only fires for SQL method arguments.
 func walkNodeRubyStringRefs(node *sitter.Node, src []byte, lines [][]byte, fieldName, file string, refs *[]Reference) {
+	sqlHeredocRows := collectSqlHeredocRows(node, src)
+	walkNodeRubyStringRefsInner(node, src, lines, fieldName, file, refs, sqlHeredocRows)
+}
+
+// collectSqlHeredocRows pre-scans the AST subtree rooted at root and returns
+// the set of source rows on which heredoc_beginning nodes appear as positional
+// arguments to rubySqlMethods calls. The heredoc_body sibling shares the same
+// StartPoint().Row, so this set is used to constrain the heredoc_body handler.
+func collectSqlHeredocRows(root *sitter.Node, src []byte) map[int]bool {
+	rows := make(map[int]bool)
+	var collect func(*sitter.Node)
+	collect = func(node *sitter.Node) {
+		if node.Type() == "call" {
+			method := node.ChildByFieldName("method")
+			args := node.ChildByFieldName("arguments")
+			if method != nil && args != nil && rubySqlMethods[method.Content(src)] {
+				for i := 0; i < int(args.ChildCount()); i++ {
+					c := args.Child(i)
+					if c.Type() == "heredoc_beginning" {
+						rows[int(c.StartPoint().Row)] = true
+					}
+				}
+			}
+		}
+		for i := 0; i < int(node.ChildCount()); i++ {
+			collect(node.Child(i))
+		}
+	}
+	collect(root)
+	return rows
+}
+
+func walkNodeRubyStringRefsInner(node *sitter.Node, src []byte, lines [][]byte, fieldName, file string, refs *[]Reference, sqlHeredocRows map[int]bool) {
 	switch node.Type() {
 	case "call":
 		method := node.ChildByFieldName("method")
@@ -211,6 +246,10 @@ func walkNodeRubyStringRefs(node *sitter.Node, src []byte, lines [][]byte, field
 		}
 
 	case "heredoc_body":
+		// Only emit a ref when this heredoc was passed to a rubySqlMethod call.
+		if !sqlHeredocRows[int(node.StartPoint().Row)] {
+			break
+		}
 		var sb strings.Builder
 		for i := 0; i < int(node.ChildCount()); i++ {
 			c := node.Child(i)
@@ -225,7 +264,7 @@ func walkNodeRubyStringRefs(node *sitter.Node, src []byte, lines [][]byte, field
 	}
 
 	for i := 0; i < int(node.ChildCount()); i++ {
-		walkNodeRubyStringRefs(node.Child(i), src, lines, fieldName, file, refs)
+		walkNodeRubyStringRefsInner(node.Child(i), src, lines, fieldName, file, refs, sqlHeredocRows)
 	}
 }
 
@@ -235,15 +274,17 @@ func rubySymbolName(node *sitter.Node, src []byte) string {
 	return node.Content(src)[1:]
 }
 
-// rubyStringContent returns the string_content child of a Ruby string node.
+// rubyStringContent returns the concatenated text of all string_content children
+// of a Ruby string node, skipping interpolations and other non-literal segments.
 func rubyStringContent(node *sitter.Node, src []byte) string {
+	var sb strings.Builder
 	for i := 0; i < int(node.ChildCount()); i++ {
 		c := node.Child(i)
 		if c.Type() == "string_content" {
-			return c.Content(src)
+			sb.WriteString(c.Content(src))
 		}
 	}
-	return ""
+	return sb.String()
 }
 
 // rubyContainsField reports whether s contains fieldName as a whole word

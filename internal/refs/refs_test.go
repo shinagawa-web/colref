@@ -2476,7 +2476,8 @@ func TestScanRubyStringRefs_SelectAll_StringArg(t *testing.T) {
 
 func TestScanRubyStringRefs_FindBySql_Heredoc_LineNumber(t *testing.T) {
 	// Verify the line number reported for a heredoc SQL argument.
-	// The heredoc_body node's StartPoint().Row determines what line we report.
+	// The heredoc_body node's StartPoint().Row equals the opener line row,
+	// so the reported line points to the find_by_sql call, not the SQL content.
 	src := "Article.find_by_sql(<<~SQL)\n  SELECT * FROM articles WHERE email = ?\nSQL\n"
 	dir := t.TempDir()
 	writeFile(t, dir, "app.rb", src)
@@ -2487,7 +2488,13 @@ func TestScanRubyStringRefs_FindBySql_Heredoc_LineNumber(t *testing.T) {
 	if len(refs) != 1 {
 		t.Fatalf("want 1 ref, got %d: %v", len(refs), refs)
 	}
-	t.Logf("heredoc ref: line=%d text=%q", refs[0].Line, refs[0].Text)
+	if refs[0].Line != 1 {
+		t.Errorf("want line 1 (call line), got %d", refs[0].Line)
+	}
+	wantText := `[sql ref] Article.find_by_sql(<<~SQL)`
+	if refs[0].Text != wantText {
+		t.Errorf("want text %q, got %q", wantText, refs[0].Text)
+	}
 }
 
 func TestScanRubyStringRefs_Heredoc_NoDMLPrefix_NotMatched(t *testing.T) {
@@ -2500,6 +2507,21 @@ func TestScanRubyStringRefs_Heredoc_NoDMLPrefix_NotMatched(t *testing.T) {
 	}
 	if len(refs) != 0 {
 		t.Errorf("expected no refs for non-SQL heredoc, got %v", refs)
+	}
+}
+
+func TestScanRubyStringRefs_Heredoc_NonSqlMethod_Ignored(t *testing.T) {
+	// A heredoc passed to a non-SQL method (e.g. plain assignment) that happens
+	// to contain a SQL DML keyword must not produce a [sql ref].
+	src := "body = <<~SQL\n  SELECT * FROM articles WHERE email = ?\nSQL\n"
+	dir := t.TempDir()
+	writeFile(t, dir, "app.rb", src)
+	refs, _, err := ScanRubyStringRefs(dir, "email")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(refs) != 0 {
+		t.Errorf("expected no refs for heredoc not passed to SQL method, got %v", refs)
 	}
 }
 
