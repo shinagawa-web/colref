@@ -10,8 +10,8 @@ import (
 	"strings"
 
 	"github.com/shinagawa-web/colref/internal/orm"
-	"github.com/shinagawa-web/colref/internal/parser"
-	"github.com/shinagawa-web/colref/internal/scanner"
+	"github.com/shinagawa-web/colref/internal/refs"
+	"github.com/shinagawa-web/colref/internal/schema"
 	"github.com/spf13/cobra"
 )
 
@@ -47,19 +47,19 @@ func init() {
 
 // buildModelSet is the function used to build the cross-file Django model set.
 // It is a var so tests can inject a failing version to cover error paths.
-var buildModelSet = parser.BuildModelSet
+var buildModelSet = schema.BuildModelSet
 
 // parseModelsWithSet is the function used to extract fields from a source file
 // given a pre-built model set. It is a var so tests can inject a failing version.
-var parseModelsWithSet = parser.ParseModelsWithSet
+var parseModelsWithSet = schema.ParseModelsWithSet
 
 // parseSchemaRb is the function used to parse a db/schema.rb source file.
 // It is a var so tests can inject a failing version to cover error paths.
-var parseSchemaRb = parser.ParseSchemaRb
+var parseSchemaRb = schema.ParseSchemaRb
 
 // parseMigrations is the function used to parse db/migrate/ files.
 // It is a var so tests can inject a failing version to cover error paths.
-var parseMigrations = parser.ParseMigrations
+var parseMigrations = schema.ParseMigrations
 
 // filepathRelFn is the function used to compute relative paths in runCheck.
 // It is a var so tests can inject a failing version to cover error paths.
@@ -89,7 +89,7 @@ func runCheckRails(dir, modelName, fieldName string) error {
 	if err != nil {
 		return fmt.Errorf("parse %s: %w", schemaFile, err)
 	}
-	return runCheckFields(dir, modelName, fieldName, fields, scanner.ScanRuby)
+	return runCheckFields(dir, modelName, fieldName, fields, refs.ScanRuby)
 }
 
 func runCheckRailsMigrations(dir, modelName, fieldName string) error {
@@ -98,7 +98,7 @@ func runCheckRailsMigrations(dir, modelName, fieldName string) error {
 	if err != nil {
 		return fmt.Errorf("parse migrations from %s: %w", migrateDir, err)
 	}
-	return runCheckFields(dir, modelName, fieldName, fields, scanner.ScanRuby)
+	return runCheckFields(dir, modelName, fieldName, fields, refs.ScanRuby)
 }
 
 func runCheckDjango(dir, modelName, fieldName string) error {
@@ -169,10 +169,10 @@ func runCheckDjango(dir, modelName, fieldName string) error {
 		allFields = append(allFields, pf.fields...)
 	}
 
-	return runCheckFields(dir, modelName, fieldName, allFields, scanner.ScanDjango)
+	return runCheckFields(dir, modelName, fieldName, allFields, refs.ScanDjango)
 }
 
-func runCheckFields(dir, modelName, fieldName string, allFields []parser.Field, scan func(string, string) ([]scanner.Reference, int, error)) error {
+func runCheckFields(dir, modelName, fieldName string, allFields []schema.Field, scan func(string, string) ([]refs.Reference, int, error)) error {
 	fieldNames := fieldsForModel(allFields, modelName)
 	if len(fieldNames) == 0 {
 		known := knownModels(allFields)
@@ -190,7 +190,7 @@ func runCheckFields(dir, modelName, fieldName string, allFields []parser.Field, 
 	return runScan(dir, modelName, fieldName, scan)
 }
 
-func runScan(dir, modelName, fieldName string, scan func(string, string) ([]scanner.Reference, int, error)) error {
+func runScan(dir, modelName, fieldName string, scan func(string, string) ([]refs.Reference, int, error)) error {
 	refs, count, err := scan(dir, fieldName)
 	if err != nil {
 		return err
@@ -230,7 +230,7 @@ func findModelsFiles(dir string) ([]string, error) {
 		}
 		if d.IsDir() {
 			name := d.Name()
-			if path != dir && (strings.HasPrefix(name, ".") || scanner.SkipDirs[name]) {
+			if path != dir && (strings.HasPrefix(name, ".") || refs.SkipDirs[name]) {
 				return filepath.SkipDir
 			}
 			return nil
