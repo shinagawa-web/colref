@@ -2129,3 +2129,173 @@ func TestScanRubyStringRefs_FieldAfterEmbeddedOccurrence(t *testing.T) {
 		t.Fatalf("want 1 ref (second occurrence matches), got %d: %v", len(refs), refs)
 	}
 }
+
+// ── Rails string refs — creation, update, aggregation (issue #118) ──────────
+
+func TestScanRubyStringRefs_New(t *testing.T) {
+	dir := t.TempDir()
+	writeFile(t, dir, "app.rb", `Article.new(email: value)`)
+	refs, _, err := ScanRubyStringRefs(dir, "email")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(refs) != 1 || refs[0].Text != "[string] Article.new(email: value)" {
+		t.Errorf("unexpected refs: %v", refs)
+	}
+}
+
+func TestScanRubyStringRefs_Create(t *testing.T) {
+	dir := t.TempDir()
+	writeFile(t, dir, "app.rb", `Article.create(email: value)`)
+	refs, _, err := ScanRubyStringRefs(dir, "email")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(refs) != 1 || refs[0].Text != "[string] Article.create(email: value)" {
+		t.Errorf("unexpected refs: %v", refs)
+	}
+}
+
+func TestScanRubyStringRefs_FindOrCreateBy(t *testing.T) {
+	dir := t.TempDir()
+	writeFile(t, dir, "app.rb", `Article.find_or_create_by(email: value)`)
+	refs, _, err := ScanRubyStringRefs(dir, "email")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(refs) != 1 || refs[0].Text != "[string] Article.find_or_create_by(email: value)" {
+		t.Errorf("unexpected refs: %v", refs)
+	}
+}
+
+func TestScanRubyStringRefs_FindOrInitializeBy(t *testing.T) {
+	dir := t.TempDir()
+	writeFile(t, dir, "app.rb", `Article.find_or_initialize_by(email: value)`)
+	refs, _, err := ScanRubyStringRefs(dir, "email")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(refs) != 1 || refs[0].Text != "[string] Article.find_or_initialize_by(email: value)" {
+		t.Errorf("unexpected refs: %v", refs)
+	}
+}
+
+func TestScanRubyStringRefs_Update(t *testing.T) {
+	dir := t.TempDir()
+	writeFile(t, dir, "app.rb", `record.update(email: value)`)
+	refs, _, err := ScanRubyStringRefs(dir, "email")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(refs) != 1 || refs[0].Text != "[string] record.update(email: value)" {
+		t.Errorf("unexpected refs: %v", refs)
+	}
+}
+
+func TestScanRubyStringRefs_AssignAttributes(t *testing.T) {
+	dir := t.TempDir()
+	writeFile(t, dir, "app.rb", `record.assign_attributes(email: value)`)
+	refs, _, err := ScanRubyStringRefs(dir, "email")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(refs) != 1 || refs[0].Text != "[string] record.assign_attributes(email: value)" {
+		t.Errorf("unexpected refs: %v", refs)
+	}
+}
+
+func TestScanRubyStringRefs_UpdateColumn(t *testing.T) {
+	dir := t.TempDir()
+	writeFile(t, dir, "app.rb", `record.update_column(:email, value)`)
+	refs, _, err := ScanRubyStringRefs(dir, "email")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(refs) != 1 || refs[0].Text != "[string] record.update_column(:email, value)" {
+		t.Errorf("unexpected refs: %v", refs)
+	}
+}
+
+func TestScanRubyStringRefs_UpdateColumns(t *testing.T) {
+	dir := t.TempDir()
+	writeFile(t, dir, "app.rb", `record.update_columns(email: value)`)
+	refs, _, err := ScanRubyStringRefs(dir, "email")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(refs) != 1 || refs[0].Text != "[string] record.update_columns(email: value)" {
+		t.Errorf("unexpected refs: %v", refs)
+	}
+}
+
+func TestScanRubyStringRefs_UpdateAll(t *testing.T) {
+	dir := t.TempDir()
+	writeFile(t, dir, "app.rb", `Article.update_all(email: value)`)
+	refs, _, err := ScanRubyStringRefs(dir, "email")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(refs) != 1 || refs[0].Text != "[string] Article.update_all(email: value)" {
+		t.Errorf("unexpected refs: %v", refs)
+	}
+}
+
+func TestScanRubyStringRefs_FindBy(t *testing.T) {
+	dir := t.TempDir()
+	writeFile(t, dir, "app.rb", `Article.find_by(email: value)`)
+	refs, _, err := ScanRubyStringRefs(dir, "email")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(refs) != 1 || refs[0].Text != "[string] Article.find_by(email: value)" {
+		t.Errorf("unexpected refs: %v", refs)
+	}
+}
+
+func TestScanRubyStringRefs_ExistsQ(t *testing.T) {
+	dir := t.TempDir()
+	writeFile(t, dir, "app.rb", `Article.exists?(email: value)`)
+	refs, _, err := ScanRubyStringRefs(dir, "email")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(refs) != 1 || refs[0].Text != "[string] Article.exists?(email: value)" {
+		t.Errorf("unexpected refs: %v", refs)
+	}
+}
+
+func TestScanRubyStringRefs_Minimum(t *testing.T) {
+	dir := t.TempDir()
+	writeFile(t, dir, "app.rb", `Article.minimum(:email)`)
+	refs, _, err := ScanRubyStringRefs(dir, "email")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(refs) != 1 || refs[0].Text != "[string] Article.minimum(:email)" {
+		t.Errorf("unexpected refs: %v", refs)
+	}
+}
+
+func TestScanRubyStringRefs_Maximum(t *testing.T) {
+	dir := t.TempDir()
+	writeFile(t, dir, "app.rb", `Article.maximum(:email)`)
+	refs, _, err := ScanRubyStringRefs(dir, "email")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(refs) != 1 || refs[0].Text != "[string] Article.maximum(:email)" {
+		t.Errorf("unexpected refs: %v", refs)
+	}
+}
+
+func TestScanRubyStringRefs_Sum(t *testing.T) {
+	dir := t.TempDir()
+	writeFile(t, dir, "app.rb", `Article.sum(:email)`)
+	refs, _, err := ScanRubyStringRefs(dir, "email")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(refs) != 1 || refs[0].Text != "[string] Article.sum(:email)" {
+		t.Errorf("unexpected refs: %v", refs)
+	}
+}
