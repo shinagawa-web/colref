@@ -8,7 +8,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/shinagawa-web/colref/internal/parser"
+	"github.com/shinagawa-web/colref/internal/schema"
 )
 
 func setupDjangoFixture(t *testing.T) string {
@@ -261,7 +261,7 @@ class User(models.Model):
 
 func TestRunCheck_Django_ParseModelsWithSetError(t *testing.T) {
 	origFn := parseModelsWithSet
-	parseModelsWithSet = func(src []byte, modelSet map[string]bool) ([]parser.Field, error) {
+	parseModelsWithSet = func(src []byte, modelSet map[string]bool) ([]schema.Field, error) {
 		return nil, fmt.Errorf("injected parse error")
 	}
 	defer func() { parseModelsWithSet = origFn }()
@@ -593,7 +593,7 @@ func TestRunCheck_Rails_NoSchemaFile_NoMigrateDir(t *testing.T) {
 
 func TestRunCheck_Rails_NoSchemaFile_ParseMigrationsError(t *testing.T) {
 	orig := parseMigrations
-	parseMigrations = func(dir string) ([]parser.Field, error) {
+	parseMigrations = func(dir string) ([]schema.Field, error) {
 		return nil, fmt.Errorf("injected migrations error")
 	}
 	defer func() { parseMigrations = orig }()
@@ -632,7 +632,7 @@ func TestRunCheck_Rails_SchemaReadPermError(t *testing.T) {
 
 func TestRunCheck_Rails_ParseError(t *testing.T) {
 	origParse := parseSchemaRb
-	parseSchemaRb = func(src []byte) ([]parser.Field, error) {
+	parseSchemaRb = func(src []byte) ([]schema.Field, error) {
 		return nil, fmt.Errorf("injected schema parse error")
 	}
 	defer func() { parseSchemaRb = origParse }()
