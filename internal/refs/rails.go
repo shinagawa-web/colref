@@ -24,6 +24,8 @@ var RubySkipDirs = map[string]bool{
 var rubySymbolArgMethods = map[string]bool{
 	"select": true, "order": true, "pluck": true,
 	"pick": true, "group": true, "reorder": true,
+	"update_column": true,
+	"minimum":       true, "maximum": true, "sum": true,
 }
 
 // rubyHashKeyArgMethods are ActiveRecord methods that accept field names as
@@ -31,6 +33,9 @@ var rubySymbolArgMethods = map[string]bool{
 // time to avoid matching unrelated DSL methods.
 var rubyHashKeyArgMethods = map[string]bool{
 	"where": true, "order": true, "reorder": true, "not": true,
+	"new": true, "create": true, "find_or_create_by": true, "find_or_initialize_by": true,
+	"update": true, "assign_attributes": true, "update_columns": true, "update_all": true,
+	"find_by": true, "exists?": true,
 }
 
 // RubyScanner implements orm.ReferenceScanner for Ruby codebases.

@@ -9,9 +9,19 @@ References found for Article.title
   references.rb:15          article.title
   references.rb:16          article&.title
   references.rb:19          article.title
+  references.rb:29          [string] a = Article.new(title: value)                         # new
+  references.rb:30          [string] a = Article.create(title: value)                      # create
+  references.rb:31          [string] a = Article.find_or_create_by(title: value)           # find_or_create_by
+  references.rb:32          [string] a = Article.find_or_initialize_by(title: value)       # find_or_initialize_by
+  references.rb:35          [string] article.update(title: value)                          # update
+  references.rb:36          [string] article.assign_attributes(title: value)               # assign_attributes
+  references.rb:37          [string] article.update_column(:title, value)                  # update_column symbol
+  references.rb:38          [string] article.update_columns(title: value)                  # update_columns hash
   references.rb:41          [string] Article.where(title: value)                           # where hash
   references.rb:42          [sql ref] Article.where("title = ?", value)                     # where string
   references.rb:43          [string] Article.where.not(title: value)                       # where.not
+  references.rb:44          [string] Article.find_by(title: value)                         # find_by
+  references.rb:45          [string] Article.exists?(title: value)                         # exists?
   references.rb:46          [string] Article.order(:title)                                 # order symbol
   references.rb:47          [string] Article.order(title: :desc)                           # order hash
   references.rb:48          [sql ref] Article.order("title ASC")                            # order string
@@ -22,5 +32,9 @@ References found for Article.title
   references.rb:53          [string] Article.group(:title)                                 # group symbol
   references.rb:54          [string] Article.pick(:title)                                  # pick
   references.rb:55          [string] Article.reorder(:title)                               # reorder
+  references.rb:56          [string] Article.update_all(title: value)                      # update_all
+  references.rb:59          [string] Article.minimum(:title)                               # minimum
+  references.rb:60          [string] Article.maximum(:title)                               # maximum
+  references.rb:61          [string] Article.sum(:title)                                   # sum
   references.rb:64          [string] t = Article.arel_table[:title]                        # table subscript
   references.rb:65          [string] Article.arel_table[:title].eq(value)                  # arel condition
