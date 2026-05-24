@@ -30,11 +30,11 @@ var positionalStringMethods = map[string]bool{
 // firstArgStringFunctions are Django expression/aggregate functions whose first
 // positional string argument is a field name (same convention as F()).
 var firstArgStringFunctions = map[string]bool{
-	"F":        true,
-	"Max":      true, "Min": true, "Avg": true, "Sum": true, "Count": true,
-	"StdDev":   true, "Variance": true,
+	"F":   true,
+	"Max": true, "Min": true, "Avg": true, "Sum": true, "Count": true,
+	"StdDev": true, "Variance": true,
 	"Coalesce": true, "Concat": true, "Greatest": true, "Least": true,
-	"NullIf":   true, "OuterRef": true, "Subquery": true,
+	"NullIf": true, "OuterRef": true, "Subquery": true,
 }
 
 // keywordArgMethods are Django ORM methods (and Q) whose keyword argument names
