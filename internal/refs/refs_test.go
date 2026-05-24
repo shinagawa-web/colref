@@ -1484,6 +1484,79 @@ func TestScanRuby_ERBStringLiteralWithPercentGT(t *testing.T) {
 	}
 }
 
+func TestScanStringRefs_Max(t *testing.T) {
+	dir := t.TempDir()
+	writeFile(t, dir, "views.py", `from django.db.models import Max; result = Article.objects.aggregate(Max("title"))`)
+
+	refs, _, err := ScanStringRefs(dir, "title")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(refs) != 1 {
+		t.Fatalf("want 1 ref for Max(), got %d: %v", len(refs), refs)
+	}
+}
+
+func TestScanStringRefs_AggregateVariants(t *testing.T) {
+	for _, fn := range []string{"Min", "Avg", "Sum", "Count", "StdDev", "Variance"} {
+		fn := fn
+		t.Run(fn, func(t *testing.T) {
+			dir := t.TempDir()
+			writeFile(t, dir, "views.py", `result = Article.objects.aggregate(`+fn+`("title"))`)
+			refs, _, err := ScanStringRefs(dir, "title")
+			if err != nil {
+				t.Fatal(err)
+			}
+			if len(refs) != 1 {
+				t.Fatalf("%s: want 1 ref, got %d: %v", fn, len(refs), refs)
+			}
+		})
+	}
+}
+
+func TestScanStringRefs_Coalesce(t *testing.T) {
+	dir := t.TempDir()
+	writeFile(t, dir, "views.py", `from django.db.models.functions import Coalesce; expr = Coalesce("title", Value(""))`)
+
+	refs, _, err := ScanStringRefs(dir, "title")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(refs) != 1 {
+		t.Fatalf("want 1 ref for Coalesce(), got %d: %v", len(refs), refs)
+	}
+}
+
+func TestScanStringRefs_OuterRef(t *testing.T) {
+	dir := t.TempDir()
+	writeFile(t, dir, "views.py", `from django.db.models import OuterRef; expr = OuterRef("title")`)
+
+	refs, _, err := ScanStringRefs(dir, "title")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(refs) != 1 {
+		t.Fatalf("want 1 ref for OuterRef(), got %d: %v", len(refs), refs)
+	}
+}
+
+func TestScanStringRefs_ExpressionVariants(t *testing.T) {
+	for _, fn := range []string{"Concat", "Greatest", "Least", "NullIf", "Subquery"} {
+		fn := fn
+		t.Run(fn, func(t *testing.T) {
+			dir := t.TempDir()
+			writeFile(t, dir, "views.py", `expr = `+fn+`("title")`)
+			refs, _, err := ScanStringRefs(dir, "title")
+			if err != nil {
+				t.Fatal(err)
+			}
+			if len(refs) != 1 {
+				t.Fatalf("%s: want 1 ref, got %d: %v", fn, len(refs), refs)
+			}
+		})
+	}
+}
+
 // BenchmarkScan uses 1,000 Python files (200 apps × 5 files, ~100 lines each) with
 // per-app generated names — comparable to BookWyrm scale (~433 files, ~52k lines)
 // in line density while exceeding it in file count.
