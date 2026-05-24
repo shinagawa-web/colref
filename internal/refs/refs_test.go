@@ -2039,27 +2039,6 @@ func TestScanRuby_CombinesAttrAndStringRefs(t *testing.T) {
 	}
 }
 
-func TestScanRuby_StringRefsError(t *testing.T) {
-	// First scanFiles call (attrRefs) succeeds; second (strRefs) fails.
-	call := 0
-	orig := parseCtxFn
-	t.Cleanup(func() { parseCtxFn = orig })
-	parseCtxFn = func(p *sitter.Parser, ctx context.Context, oldTree *sitter.Tree, src []byte) (*sitter.Tree, error) {
-		call++
-		if call <= 1 {
-			return orig(p, ctx, oldTree, src)
-		}
-		return nil, fmt.Errorf("injected string refs error")
-	}
-	dir := t.TempDir()
-	writeFile(t, dir, "app.rb", `user.email`)
-
-	_, _, err := ScanRuby(dir, "email")
-	if err == nil {
-		t.Fatal("expected error from ScanRubyStringRefs, got nil")
-	}
-}
-
 func TestScanRubyStringRefs_NotReceiverCallNotWhere(t *testing.T) {
 	// .not(field: val) where receiver is a non-where call must not be reported.
 	dir := t.TempDir()
@@ -2118,5 +2097,35 @@ func TestScanRubyStringRefs_EmptyStringArgNoMatch(t *testing.T) {
 	}
 	if len(refs) != 0 {
 		t.Errorf("want 0 refs, got %d: %v", len(refs), refs)
+	}
+}
+
+func TestScanRubyStringRefs_FieldEmbeddedNoMatch(t *testing.T) {
+	// "subtitle" — "title" occurs but only inside a larger word with no following
+	// characters, triggering the start >= len(s) early-exit path in the loop.
+	dir := t.TempDir()
+	writeFile(t, dir, "app.rb", `Article.order("subtitle")`)
+
+	refs, _, err := ScanRubyStringRefs(dir, "title")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(refs) != 0 {
+		t.Errorf("want 0 refs (embedded), got %d: %v", len(refs), refs)
+	}
+}
+
+func TestScanRubyStringRefs_FieldAfterEmbeddedOccurrence(t *testing.T) {
+	// "user_id id ASC" — first "id" is inside "user_id" (non-boundary), second is
+	// a standalone word → should match. Exercises the looping in rubyContainsField.
+	dir := t.TempDir()
+	writeFile(t, dir, "app.rb", `Article.order("user_id id ASC")`)
+
+	refs, _, err := ScanRubyStringRefs(dir, "id")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(refs) != 1 {
+		t.Fatalf("want 1 ref (second occurrence matches), got %d: %v", len(refs), refs)
 	}
 }

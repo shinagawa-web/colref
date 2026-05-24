@@ -51,20 +51,19 @@ func (RubyScanner) SkipDirs() map[string]bool {
 }
 
 // ScanRuby combines attribute-access and string-based ORM scanning for Rails
-// projects. Results are merged and sorted by (File, Line).
+// projects in a single parse pass per file. Results are sorted by (File, Line).
 func ScanRuby(dir, fieldName string) ([]Reference, int, error) {
-	attrRefs, count, err := scanFiles(dir, fieldName, map[string]func([]byte) []byte{
+	combined := func(node *sitter.Node, src []byte, lines [][]byte, fn, file string, refs *[]Reference) {
+		walkNodeRuby(node, src, lines, fn, file, refs)
+		walkNodeRubyStringRefs(node, src, lines, fn, file, refs)
+	}
+	refs, count, err := scanFiles(dir, fieldName, map[string]func([]byte) []byte{
 		".rb":  nil,
 		".erb": erbToRuby,
-	}, ruby.GetLanguage(), walkNodeRuby, RubySkipDirs)
+	}, ruby.GetLanguage(), combined, RubySkipDirs)
 	if err != nil {
 		return nil, 0, err
 	}
-	strRefs, _, err := ScanRubyStringRefs(dir, fieldName)
-	if err != nil {
-		return nil, 0, err
-	}
-	refs := append(attrRefs, strRefs...)
 	sort.Slice(refs, func(i, j int) bool {
 		if refs[i].File != refs[j].File {
 			return refs[i].File < refs[j].File
@@ -211,14 +210,26 @@ func rubyStringContent(node *sitter.Node, src []byte) string {
 
 // rubyContainsField reports whether s contains fieldName as a whole word
 // (bounded by non-alphanumeric/non-underscore characters or string ends).
+// All occurrences are checked so a non-boundary first hit does not mask a
+// later boundary hit (e.g. "user_id id" correctly matches "id").
 func rubyContainsField(s, fieldName string) bool {
-	idx := strings.Index(s, fieldName)
-	if idx < 0 {
-		return false
+	start := 0
+	for {
+		idx := strings.Index(s[start:], fieldName)
+		if idx < 0 {
+			return false
+		}
+		idx += start
+		before := idx == 0 || !isWordChar(s[idx-1])
+		after := idx+len(fieldName) == len(s) || !isWordChar(s[idx+len(fieldName)])
+		if before && after {
+			return true
+		}
+		start = idx + len(fieldName)
+		if start >= len(s) {
+			return false
+		}
 	}
-	before := idx == 0 || !isWordChar(s[idx-1])
-	after := idx+len(fieldName) == len(s) || !isWordChar(s[idx+len(fieldName)])
-	return before && after
 }
 
 func isWordChar(c byte) bool {
