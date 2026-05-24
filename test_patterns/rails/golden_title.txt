@@ -38,3 +38,7 @@ References found for Article.title
   references.rb:61          [string] Article.sum(:title)                                   # sum
   references.rb:64          [string] t = Article.arel_table[:title]                        # table subscript
   references.rb:65          [string] Article.arel_table[:title].eq(value)                  # arel condition
+  references.rb:81          [sql ref] Article.find_by_sql("SELECT title FROM articles WHERE title = ?", value)    # find_by_sql string
+  references.rb:82          [sql ref] connection.execute("UPDATE articles SET title = ?", value)                  # execute string
+  references.rb:83          [sql ref] connection.select_all("SELECT title, slug FROM articles")                   # select_all string
+  references.rb:84          [sql ref] Article.find_by_sql(<<~SQL)                                                  # find_by_sql heredoc

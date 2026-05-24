@@ -38,6 +38,12 @@ var rubyHashKeyArgMethods = map[string]bool{
 	"find_by": true, "exists?": true,
 }
 
+// rubySqlMethods are Ruby/ActiveRecord methods whose first positional string
+// argument is raw SQL.
+var rubySqlMethods = map[string]bool{
+	"find_by_sql": true, "execute": true, "select_all": true,
+}
+
 // RubyScanner implements orm.ReferenceScanner for Ruby codebases.
 type RubyScanner struct{}
 
@@ -127,6 +133,20 @@ func walkNodeRubyStringRefs(node *sitter.Node, src []byte, lines [][]byte, field
 		}
 		methodName := method.Content(src)
 
+		if rubySqlMethods[methodName] {
+			for i := 0; i < int(args.ChildCount()); i++ {
+				child := args.Child(i)
+				if child.Type() == "string" {
+					content := rubyStringContent(child, src)
+					if isSQLString(content) && sqlContainsField([]byte(content), fieldName) {
+						addRubySqlRef(child, lines, file, refs)
+					}
+					break
+				}
+			}
+			break
+		}
+
 		// For "not", only match when receiver is a call to "where".
 		if methodName == "not" {
 			receiver := node.ChildByFieldName("receiver")
@@ -188,6 +208,19 @@ func walkNodeRubyStringRefs(node *sitter.Node, src []byte, lines [][]byte, field
 					}
 				}
 			}
+		}
+
+	case "heredoc_body":
+		var sb strings.Builder
+		for i := 0; i < int(node.ChildCount()); i++ {
+			c := node.Child(i)
+			if c.Type() == "heredoc_content" {
+				sb.WriteString(c.Content(src))
+			}
+		}
+		content := sb.String()
+		if isSQLString(content) && sqlContainsField([]byte(content), fieldName) {
+			addRubySqlRef(node, lines, file, refs)
 		}
 	}
 

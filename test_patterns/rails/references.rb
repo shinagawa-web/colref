@@ -76,4 +76,12 @@ if false
   article.instance_variable_get(:@title)               # instance_variable_get (not detectable)
   article.title_changed?                                # attribute_changed? (name-mangled)
   Article.find_by_title(value)                          # dynamic finder (name-mangled)
+
+  # ── Raw SQL ───────────────────────────────────────────────────────────────────
+  Article.find_by_sql("SELECT title FROM articles WHERE title = ?", value)    # find_by_sql string
+  connection.execute("UPDATE articles SET title = ?", value)                  # execute string
+  connection.select_all("SELECT title, slug FROM articles")                   # select_all string
+  Article.find_by_sql(<<~SQL)                                                  # find_by_sql heredoc
+    SELECT title FROM articles WHERE title = ?
+  SQL
 end
