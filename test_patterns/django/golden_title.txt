@@ -30,3 +30,7 @@ References found for Article.title
   references.py:71   [string] Article.objects.update(title='x')                      # update (bulk)
   references.py:74   [string] expr = F('title')                                       # F()
   references.py:75   [string] qs = Article.objects.annotate(t=F('title'))            # annotate with F
+  references.py:76   [string] x = Article.objects.aggregate(Max('title'))            # aggregate
+  references.py:77   [string] expr = Coalesce('title', Value(''))                    # Coalesce
+  references.py:78   [string] expr = Concat('title', Value(' - '))                   # Concat
+  references.py:79   [string] expr = OuterRef('title')                               # OuterRef
