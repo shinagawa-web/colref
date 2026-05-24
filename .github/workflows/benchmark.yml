@@ -44,6 +44,13 @@ jobs:
       - name: Run benchmarks on main branch
         run: make bench | tee old-bench.txt
 
+      - name: Normalize package names in old benchmark results
+        run: |
+          sed -i \
+            -e 's|pkg: .*/internal/parser|pkg: github.com/shinagawa-web/colref/internal/schema|g' \
+            -e 's|pkg: .*/internal/scanner|pkg: github.com/shinagawa-web/colref/internal/refs|g' \
+            old-bench.txt
+
       - name: Compare benchmarks
         id: benchmark_comparison
         run: |
