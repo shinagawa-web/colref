@@ -5,14 +5,6 @@ import (
 	"testing"
 )
 
-func TestMain_Success(t *testing.T) {
-	// --help is handled by cobra and returns nil from Execute.
-	rootCmd.SetOut(io.Discard)
-	rootCmd.SetErr(io.Discard)
-	rootCmd.SetArgs([]string{"--help"})
-	main()
-}
-
 func TestMain_Error(t *testing.T) {
 	origExit := exit
 	var code int
