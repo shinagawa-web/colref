@@ -2419,3 +2419,121 @@ func TestScanRubyStringRefs_Sum(t *testing.T) {
 		t.Errorf("unexpected refs: %v", refs)
 	}
 }
+
+// ── Rails raw SQL reference tests ────────────────────────────────────────────
+
+func TestScanRubyStringRefs_FindBySql_StringArg(t *testing.T) {
+	dir := t.TempDir()
+	writeFile(t, dir, "app.rb", `Article.find_by_sql("SELECT * FROM articles WHERE email = ?", value)`)
+	refs, _, err := ScanRubyStringRefs(dir, "email")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(refs) != 1 {
+		t.Fatalf("want 1 ref, got %d: %v", len(refs), refs)
+	}
+	want := `[sql ref] Article.find_by_sql("SELECT * FROM articles WHERE email = ?", value)`
+	if refs[0].Text != want {
+		t.Errorf("unexpected text: %q", refs[0].Text)
+	}
+}
+
+func TestScanRubyStringRefs_FindBySql_NoMatch(t *testing.T) {
+	dir := t.TempDir()
+	writeFile(t, dir, "app.rb", `Article.find_by_sql("SELECT * FROM articles WHERE name = ?", value)`)
+	refs, _, err := ScanRubyStringRefs(dir, "email")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(refs) != 0 {
+		t.Errorf("expected no refs, got %v", refs)
+	}
+}
+
+func TestScanRubyStringRefs_Execute_StringArg(t *testing.T) {
+	dir := t.TempDir()
+	writeFile(t, dir, "app.rb", `connection.execute("UPDATE articles SET email = ?", value)`)
+	refs, _, err := ScanRubyStringRefs(dir, "email")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(refs) != 1 {
+		t.Fatalf("want 1 ref, got %d: %v", len(refs), refs)
+	}
+}
+
+func TestScanRubyStringRefs_SelectAll_StringArg(t *testing.T) {
+	dir := t.TempDir()
+	writeFile(t, dir, "app.rb", `connection.select_all("SELECT email FROM articles")`)
+	refs, _, err := ScanRubyStringRefs(dir, "email")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(refs) != 1 {
+		t.Fatalf("want 1 ref, got %d: %v", len(refs), refs)
+	}
+}
+
+func TestScanRubyStringRefs_FindBySql_Heredoc_LineNumber(t *testing.T) {
+	// Verify the line number reported for a heredoc SQL argument.
+	// The heredoc_body node's StartPoint().Row equals the opener line row,
+	// so the reported line points to the find_by_sql call, not the SQL content.
+	src := "Article.find_by_sql(<<~SQL)\n  SELECT * FROM articles WHERE email = ?\nSQL\n"
+	dir := t.TempDir()
+	writeFile(t, dir, "app.rb", src)
+	refs, _, err := ScanRubyStringRefs(dir, "email")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(refs) != 1 {
+		t.Fatalf("want 1 ref, got %d: %v", len(refs), refs)
+	}
+	if refs[0].Line != 1 {
+		t.Errorf("want line 1 (call line), got %d", refs[0].Line)
+	}
+	wantText := `[sql ref] Article.find_by_sql(<<~SQL)`
+	if refs[0].Text != wantText {
+		t.Errorf("want text %q, got %q", wantText, refs[0].Text)
+	}
+}
+
+func TestScanRubyStringRefs_Heredoc_NoDMLPrefix_NotMatched(t *testing.T) {
+	src := "Article.find_by_sql(<<~MSG)\n  some random text with email in it\nMSG\n"
+	dir := t.TempDir()
+	writeFile(t, dir, "app.rb", src)
+	refs, _, err := ScanRubyStringRefs(dir, "email")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(refs) != 0 {
+		t.Errorf("expected no refs for non-SQL heredoc, got %v", refs)
+	}
+}
+
+func TestScanRubyStringRefs_Heredoc_NonSqlMethod_Ignored(t *testing.T) {
+	// A heredoc passed to a non-SQL method (e.g. plain assignment) that happens
+	// to contain a SQL DML keyword must not produce a [sql ref].
+	src := "body = <<~SQL\n  SELECT * FROM articles WHERE email = ?\nSQL\n"
+	dir := t.TempDir()
+	writeFile(t, dir, "app.rb", src)
+	refs, _, err := ScanRubyStringRefs(dir, "email")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(refs) != 0 {
+		t.Errorf("expected no refs for heredoc not passed to SQL method, got %v", refs)
+	}
+}
+
+func TestScanRubyStringRefs_Heredoc_Execute(t *testing.T) {
+	src := "connection.execute(<<~SQL)\n  UPDATE articles SET email = ?\nSQL\n"
+	dir := t.TempDir()
+	writeFile(t, dir, "app.rb", src)
+	refs, _, err := ScanRubyStringRefs(dir, "email")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(refs) != 1 {
+		t.Fatalf("want 1 ref, got %d: %v", len(refs), refs)
+	}
+}
