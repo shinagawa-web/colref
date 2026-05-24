@@ -1633,6 +1633,32 @@ func TestScanStringRefs_RawSQL_NonStringFirstArg(t *testing.T) {
 	}
 }
 
+func TestScanStringRefs_SQLDMLBoundary_NotMatched(t *testing.T) {
+	// "SELECTED..." starts with SELECT but is not a DML keyword (no word boundary).
+	dir := t.TempDir()
+	writeFile(t, dir, "views.py", `cursor.execute("SELECTED title FROM articles")`)
+	refs, _, err := ScanStringRefs(dir, "title")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(refs) != 0 {
+		t.Fatalf("want 0 refs for non-DML prefix, got %d: %v", len(refs), refs)
+	}
+}
+
+func TestScanStringRefs_SQLPlaceholder_NotFalsePositive(t *testing.T) {
+	// Field name "s" must not match the "s" inside a %s placeholder.
+	dir := t.TempDir()
+	writeFile(t, dir, "views.py", `cursor.execute("SELECT id FROM auth_user WHERE active = %s", [True])`)
+	refs, _, err := ScanStringRefs(dir, "s")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(refs) != 0 {
+		t.Fatalf("want 0 refs for %%s placeholder, got %d: %v", len(refs), refs)
+	}
+}
+
 func TestScanStringRefs_SQLParseError(t *testing.T) {
 	orig := sqlParseCtxFn
 	sqlParseCtxFn = func(_ *sitter.Parser, _ []byte) (*sitter.Tree, error) {

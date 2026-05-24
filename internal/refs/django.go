@@ -221,16 +221,26 @@ func addSqlRef(node *sitter.Node, lines [][]byte, file string, refs *[]Reference
 	})
 }
 
-// isSQLString reports whether s looks like a SQL DML statement by checking
-// that its trimmed prefix matches a known DML keyword.
+// isSQLString reports whether s looks like a SQL DML statement. The trimmed
+// prefix must match a known DML keyword followed by a non-word character (or
+// end of string), so strings like "SELECTED..." or "WITHDRAW..." are rejected.
 func isSQLString(s string) bool {
 	upper := strings.ToUpper(strings.TrimSpace(s))
 	for _, kw := range sqlDMLPrefixes {
 		if strings.HasPrefix(upper, kw) {
-			return true
+			rest := upper[len(kw):]
+			if len(rest) == 0 || !sqlWordByte(rest[0]) {
+				return true
+			}
 		}
 	}
 	return false
+}
+
+// sqlWordByte reports whether b is an ASCII identifier character (letter,
+// digit, or underscore) used to enforce DML keyword boundaries.
+func sqlWordByte(b byte) bool {
+	return (b >= 'A' && b <= 'Z') || (b >= 'a' && b <= 'z') || (b >= '0' && b <= '9') || b == '_'
 }
 
 // sqlParseCtxFn is the function used to parse SQL into a tree.
@@ -256,11 +266,17 @@ func sqlContainsField(sqlSrc []byte, fieldName string) bool {
 
 // walkSQLFieldNode recursively walks a SQL AST and returns true if any field
 // node contains an identifier child that equals fieldName.
+// Identifiers immediately preceded by '%' in the source are skipped; they are
+// DB-API positional placeholders (%s, %d, etc.) parsed as spurious field nodes.
 func walkSQLFieldNode(node *sitter.Node, src []byte, fieldName string) bool {
 	if node.Type() == "field" {
 		for i := 0; i < int(node.ChildCount()); i++ {
 			c := node.Child(i)
 			if c.Type() == "identifier" && c.Content(src) == fieldName {
+				start := int(c.StartByte())
+				if start > 0 && src[start-1] == '%' {
+					continue
+				}
 				return true
 			}
 		}
