@@ -12,7 +12,38 @@ import (
 	"github.com/shinagawa-web/colref/internal/orm"
 	"github.com/shinagawa-web/colref/internal/parser"
 	"github.com/shinagawa-web/colref/internal/scanner"
+	"github.com/spf13/cobra"
 )
+
+var (
+	flagModel string
+	flagField string
+	flagOrm   string
+)
+
+var checkCmd = &cobra.Command{
+	Use:   "check [path]",
+	Short: "Scan a codebase for references to a model field",
+	Args:  cobra.MaximumNArgs(1),
+	RunE: func(cmd *cobra.Command, args []string) error {
+		dir := "."
+		if len(args) == 1 {
+			dir = args[0]
+		}
+		return runCheck(dir, flagModel, flagField, flagOrm)
+	},
+}
+
+func init() {
+	checkCmd.Flags().StringVar(&flagModel, "model", "", "Model name (e.g. User)")
+	checkCmd.Flags().StringVar(&flagField, "field", "", "Field name (e.g. email)")
+	checkCmd.Flags().StringVar(&flagOrm, "orm", "", "ORM type: django, rails")
+	_ = checkCmd.MarkFlagRequired("model")
+	_ = checkCmd.MarkFlagRequired("field")
+	_ = checkCmd.MarkFlagRequired("orm")
+
+	rootCmd.AddCommand(checkCmd)
+}
 
 // buildModelSet is the function used to build the cross-file Django model set.
 // It is a var so tests can inject a failing version to cover error paths.
