@@ -1557,6 +1557,126 @@ func TestScanStringRefs_ExpressionVariants(t *testing.T) {
 	}
 }
 
+func TestScanStringRefs_RawSQL_Match(t *testing.T) {
+	dir := t.TempDir()
+	writeFile(t, dir, "views.py", `User.objects.raw("SELECT email FROM auth_user WHERE active = 1")`)
+	refs, _, err := ScanStringRefs(dir, "email")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(refs) != 1 {
+		t.Fatalf("want 1 ref, got %d: %v", len(refs), refs)
+	}
+	if refs[0].Line != 1 {
+		t.Errorf("want line 1, got %d", refs[0].Line)
+	}
+	if !strings.HasPrefix(refs[0].Text, "[sql ref]") {
+		t.Errorf("want [sql ref] prefix, got %q", refs[0].Text)
+	}
+}
+
+func TestScanStringRefs_RawSQL_NoMatch(t *testing.T) {
+	dir := t.TempDir()
+	writeFile(t, dir, "views.py", `User.objects.raw("SELECT id FROM auth_user WHERE active = 1")`)
+	refs, _, err := ScanStringRefs(dir, "email")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(refs) != 0 {
+		t.Fatalf("want 0 refs, got %d: %v", len(refs), refs)
+	}
+}
+
+func TestScanStringRefs_CursorExecute_Match(t *testing.T) {
+	dir := t.TempDir()
+	writeFile(t, dir, "views.py", `
+with connection.cursor() as cursor:
+    cursor.execute("SELECT email, name FROM auth_user WHERE active = %s", [True])
+`)
+	refs, _, err := ScanStringRefs(dir, "email")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(refs) != 1 {
+		t.Fatalf("want 1 ref, got %d: %v", len(refs), refs)
+	}
+	if refs[0].Line != 3 {
+		t.Errorf("want line 3, got %d", refs[0].Line)
+	}
+	if !strings.HasPrefix(refs[0].Text, "[sql ref]") {
+		t.Errorf("want [sql ref] prefix, got %q", refs[0].Text)
+	}
+}
+
+func TestScanStringRefs_NonSQLString_NotMatched(t *testing.T) {
+	dir := t.TempDir()
+	// "execute" with a non-SQL string should not be matched even if field name appears
+	writeFile(t, dir, "tasks.py", `task.execute("process email records")`)
+	refs, _, err := ScanStringRefs(dir, "email")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(refs) != 0 {
+		t.Fatalf("want 0 refs, got %d: %v", len(refs), refs)
+	}
+}
+
+func TestScanStringRefs_RawSQL_NonStringFirstArg(t *testing.T) {
+	dir := t.TempDir()
+	writeFile(t, dir, "views.py", `User.objects.raw(sql_var)`)
+	refs, _, err := ScanStringRefs(dir, "email")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(refs) != 0 {
+		t.Fatalf("want 0 refs, got %d: %v", len(refs), refs)
+	}
+}
+
+func TestScanStringRefs_SQLDMLBoundary_NotMatched(t *testing.T) {
+	// "SELECTED..." starts with SELECT but is not a DML keyword (no word boundary).
+	dir := t.TempDir()
+	writeFile(t, dir, "views.py", `cursor.execute("SELECTED title FROM articles")`)
+	refs, _, err := ScanStringRefs(dir, "title")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(refs) != 0 {
+		t.Fatalf("want 0 refs for non-DML prefix, got %d: %v", len(refs), refs)
+	}
+}
+
+func TestScanStringRefs_SQLPlaceholder_NotFalsePositive(t *testing.T) {
+	// Field name "s" must not match the "s" inside a %s placeholder.
+	dir := t.TempDir()
+	writeFile(t, dir, "views.py", `cursor.execute("SELECT id FROM auth_user WHERE active = %s", [True])`)
+	refs, _, err := ScanStringRefs(dir, "s")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(refs) != 0 {
+		t.Fatalf("want 0 refs for %%s placeholder, got %d: %v", len(refs), refs)
+	}
+}
+
+func TestScanStringRefs_SQLParseError(t *testing.T) {
+	orig := sqlParseCtxFn
+	sqlParseCtxFn = func(_ *sitter.Parser, _ []byte) (*sitter.Tree, error) {
+		return nil, fmt.Errorf("injected SQL parse error")
+	}
+	defer func() { sqlParseCtxFn = orig }()
+
+	dir := t.TempDir()
+	writeFile(t, dir, "views.py", `User.objects.raw("SELECT email FROM auth_user")`)
+	refs, _, err := ScanStringRefs(dir, "email")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(refs) != 0 {
+		t.Fatalf("want 0 refs on parse error, got %d", len(refs))
+	}
+}
+
 // BenchmarkScan uses 1,000 Python files (200 apps × 5 files, ~100 lines each) with
 // per-app generated names — comparable to BookWyrm scale (~433 files, ~52k lines)
 // in line density while exceeding it in file count.

@@ -1,11 +1,13 @@
 package refs
 
 import (
+	"context"
 	"sort"
 	"strings"
 
 	sitter "github.com/smacker/go-tree-sitter"
 	"github.com/smacker/go-tree-sitter/python"
+	gosql "github.com/smacker/go-tree-sitter/sql"
 
 	"github.com/shinagawa-web/colref/internal/orm"
 )
@@ -43,6 +45,16 @@ var keywordArgMethods = map[string]bool{
 	"filter": true, "exclude": true, "annotate": true, "Q": true,
 	"get": true, "create": true, "update": true, "get_or_create": true,
 }
+
+// sqlMethods are Python methods whose first positional string argument is raw SQL.
+var sqlMethods = map[string]bool{
+	"raw": true, "execute": true,
+}
+
+// sqlDMLPrefixes are SQL DML keywords a raw SQL string must begin with
+// (case-insensitive) before we bother parsing it. This avoids feeding
+// arbitrary strings (e.g. log messages) to the SQL grammar.
+var sqlDMLPrefixes = []string{"SELECT", "INSERT", "UPDATE", "DELETE", "WITH"}
 
 // PythonScanner implements orm.ReferenceScanner for Python codebases.
 type PythonScanner struct{}
@@ -144,6 +156,17 @@ func walkNodeStringRefs(node *sitter.Node, src []byte, lines [][]byte, fieldName
 							}
 						}
 					}
+				case sqlMethods[methodName]:
+					for i := 0; i < int(args.ChildCount()); i++ {
+						child := args.Child(i)
+						if child.Type() == "string" {
+							content := stringContent(child, src)
+							if isSQLString(content) && sqlContainsField([]byte(content), fieldName) {
+								addSqlRef(child, lines, file, refs)
+							}
+							break
+						}
+					}
 				}
 			}
 		}
@@ -186,6 +209,84 @@ func addStringRef(node *sitter.Node, lines [][]byte, file string, refs *[]Refere
 		Line: row + 1,
 		Text: "[string] " + strings.TrimSpace(lineAt(lines, row)),
 	})
+}
+
+// addSqlRef appends a [sql ref]-labeled Reference using the node's source row.
+func addSqlRef(node *sitter.Node, lines [][]byte, file string, refs *[]Reference) {
+	row := int(node.StartPoint().Row)
+	*refs = append(*refs, Reference{
+		File: file,
+		Line: row + 1,
+		Text: "[sql ref] " + strings.TrimSpace(lineAt(lines, row)),
+	})
+}
+
+// isSQLString reports whether s looks like a SQL DML statement. The trimmed
+// prefix must match a known DML keyword followed by a non-word character (or
+// end of string), so strings like "SELECTED..." or "WITHDRAW..." are rejected.
+func isSQLString(s string) bool {
+	upper := strings.ToUpper(strings.TrimSpace(s))
+	for _, kw := range sqlDMLPrefixes {
+		if strings.HasPrefix(upper, kw) {
+			rest := upper[len(kw):]
+			if len(rest) == 0 || !sqlWordByte(rest[0]) {
+				return true
+			}
+		}
+	}
+	return false
+}
+
+// sqlWordByte reports whether b is an ASCII identifier character (letter,
+// digit, or underscore) used to enforce DML keyword boundaries.
+func sqlWordByte(b byte) bool {
+	return (b >= 'A' && b <= 'Z') || (b >= 'a' && b <= 'z') || (b >= '0' && b <= '9') || b == '_'
+}
+
+// sqlParseCtxFn is the function used to parse SQL into a tree.
+// It is a var so tests can inject a failing version to cover error paths.
+var sqlParseCtxFn = func(p *sitter.Parser, src []byte) (*sitter.Tree, error) {
+	return p.ParseCtx(context.Background(), nil, src)
+}
+
+// sqlContainsField reports whether fieldName appears as a SQL field identifier
+// in sqlSrc. The SQL is parsed with the tree-sitter SQL grammar; field nodes
+// whose identifier child matches fieldName trigger a true return.
+// Note: single-letter field names risk false positives from %s placeholders,
+// which the SQL grammar parses as (ERROR "%")(field "s").
+func sqlContainsField(sqlSrc []byte, fieldName string) bool {
+	p := sitter.NewParser()
+	p.SetLanguage(gosql.GetLanguage())
+	tree, err := sqlParseCtxFn(p, sqlSrc)
+	if err != nil || tree == nil {
+		return false
+	}
+	return walkSQLFieldNode(tree.RootNode(), sqlSrc, fieldName)
+}
+
+// walkSQLFieldNode recursively walks a SQL AST and returns true if any field
+// node contains an identifier child that equals fieldName.
+// Identifiers immediately preceded by '%' in the source are skipped; they are
+// DB-API positional placeholders (%s, %d, etc.) parsed as spurious field nodes.
+func walkSQLFieldNode(node *sitter.Node, src []byte, fieldName string) bool {
+	if node.Type() == "field" {
+		for i := 0; i < int(node.ChildCount()); i++ {
+			c := node.Child(i)
+			if c.Type() == "identifier" && c.Content(src) == fieldName {
+				start := int(c.StartByte())
+				if start > 0 && src[start-1] == '%' {
+					continue
+				}
+				return true
+			}
+		}
+	}
+	for i := 0; i < int(node.ChildCount()); i++ {
+		if walkSQLFieldNode(node.Child(i), src, fieldName) {
+			return true
+		}
+	}
+	return false
 }
 
 func walkNode(node *sitter.Node, src []byte, lines [][]byte, fieldName, file string, refs *[]Reference) {

@@ -34,3 +34,5 @@ References found for Article.title
   references.py:77   [string] expr = Coalesce('title', Value(''))                    # Coalesce
   references.py:78   [string] expr = Concat('title', Value(' - '))                   # Concat
   references.py:79   [string] expr = OuterRef('title')                               # OuterRef
+  references.py:97   [sql ref] qs = Article.objects.raw("SELECT title FROM article WHERE slug = %s", [slug])  # raw()
+  references.py:99   [sql ref] cursor.execute("SELECT title, slug FROM article WHERE active = 1")         # cursor.execute

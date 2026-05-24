@@ -92,3 +92,8 @@ if False:
 
     # ── Django forms ──────────────────────────────────────────────────────────
     form_fields = ['title']                                # ModelForm.Meta.fields
+
+    # ── Raw SQL ───────────────────────────────────────────────────────────────
+    qs = Article.objects.raw("SELECT title FROM article WHERE slug = %s", [slug])  # raw()
+    with connection.cursor() as cursor:
+        cursor.execute("SELECT title, slug FROM article WHERE active = 1")         # cursor.execute
