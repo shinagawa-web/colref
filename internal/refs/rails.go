@@ -193,12 +193,9 @@ func walkNodeRubyStringRefs(node *sitter.Node, src []byte, lines [][]byte, field
 }
 
 // rubySymbolName returns the symbol name without the leading colon.
+// Only called on simple_symbol nodes, which always have a colon prefix.
 func rubySymbolName(node *sitter.Node, src []byte) string {
-	s := node.Content(src)
-	if len(s) > 1 && s[0] == ':' {
-		return s[1:]
-	}
-	return ""
+	return node.Content(src)[1:]
 }
 
 // rubyStringContent returns the string_content child of a Ruby string node.

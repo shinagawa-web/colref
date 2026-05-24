@@ -2038,3 +2038,85 @@ func TestScanRuby_CombinesAttrAndStringRefs(t *testing.T) {
 		t.Errorf("unexpected line order: %v", refs)
 	}
 }
+
+func TestScanRuby_StringRefsError(t *testing.T) {
+	// First scanFiles call (attrRefs) succeeds; second (strRefs) fails.
+	call := 0
+	orig := parseCtxFn
+	t.Cleanup(func() { parseCtxFn = orig })
+	parseCtxFn = func(p *sitter.Parser, ctx context.Context, oldTree *sitter.Tree, src []byte) (*sitter.Tree, error) {
+		call++
+		if call <= 1 {
+			return orig(p, ctx, oldTree, src)
+		}
+		return nil, fmt.Errorf("injected string refs error")
+	}
+	dir := t.TempDir()
+	writeFile(t, dir, "app.rb", `user.email`)
+
+	_, _, err := ScanRuby(dir, "email")
+	if err == nil {
+		t.Fatal("expected error from ScanRubyStringRefs, got nil")
+	}
+}
+
+func TestScanRubyStringRefs_NotReceiverCallNotWhere(t *testing.T) {
+	// .not(field: val) where receiver is a non-where call must not be reported.
+	dir := t.TempDir()
+	writeFile(t, dir, "app.rb", `Article.scope.not(email: value)`)
+
+	refs, _, err := ScanRubyStringRefs(dir, "email")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(refs) != 0 {
+		t.Errorf("want 0 refs for non-where .not, got %d: %v", len(refs), refs)
+	}
+}
+
+func TestScanRubyStringRefs_WhereStringExactField(t *testing.T) {
+	// where("email") — exact field name as where string → [string]
+	dir := t.TempDir()
+	writeFile(t, dir, "app.rb", `Article.where("email")`)
+
+	refs, _, err := ScanRubyStringRefs(dir, "email")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(refs) != 1 {
+		t.Fatalf("want 1 ref, got %d: %v", len(refs), refs)
+	}
+	if refs[0].Text != `[string] Article.where("email")` {
+		t.Errorf("unexpected text: %q", refs[0].Text)
+	}
+}
+
+func TestScanRubyStringRefs_StringNoFieldNameNoMatch(t *testing.T) {
+	// order("status ASC") when looking for "email" — no match, exercises
+	// the no-occurrence path in rubyContainsField.
+	dir := t.TempDir()
+	writeFile(t, dir, "app.rb", `Article.order("status ASC")`)
+
+	refs, _, err := ScanRubyStringRefs(dir, "email")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(refs) != 0 {
+		t.Errorf("want 0 refs, got %d: %v", len(refs), refs)
+	}
+}
+
+func TestScanRubyStringRefs_EmptyStringArgNoMatch(t *testing.T) {
+	// order("") — empty string exercises rubyStringContent returning ""
+	// and the subsequent non-match path.
+	dir := t.TempDir()
+	writeFile(t, dir, "app.rb", `Article.order("")`)
+
+	refs, _, err := ScanRubyStringRefs(dir, "email")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(refs) != 0 {
+		t.Errorf("want 0 refs, got %d: %v", len(refs), refs)
+	}
+}
