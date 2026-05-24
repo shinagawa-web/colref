@@ -2,9 +2,25 @@ Scanning 4 files...
 
 References found for Article.title
 
-  references.rb:10   article.title
-  references.rb:11   Article.find(1).title
-  references.rb:14   .title                                     # multi-line chain
-  references.rb:15   article.title
-  references.rb:16   article&.title
-  references.rb:19   article.title
+  app/models/article.rb:7   [string] scope :titled, ->(t) { where(title: t) }
+  references.rb:10          article.title
+  references.rb:11          Article.find(1).title
+  references.rb:14          .title                                     # multi-line chain
+  references.rb:15          article.title
+  references.rb:16          article&.title
+  references.rb:19          article.title
+  references.rb:41          [string] Article.where(title: value)                           # where hash
+  references.rb:42          [sql ref] Article.where("title = ?", value)                     # where string
+  references.rb:43          [string] Article.where.not(title: value)                       # where.not
+  references.rb:46          [string] Article.order(:title)                                 # order symbol
+  references.rb:47          [string] Article.order(title: :desc)                           # order hash
+  references.rb:48          [sql ref] Article.order("title ASC")                            # order string
+  references.rb:49          [string] Article.pluck(:title)                                 # pluck symbol
+  references.rb:50          [string] Article.pluck("title")                                # pluck string
+  references.rb:51          [string] Article.select(:title)                                # select symbol
+  references.rb:52          [sql ref] Article.select("title, slug")                         # select string
+  references.rb:53          [string] Article.group(:title)                                 # group symbol
+  references.rb:54          [string] Article.pick(:title)                                  # pick
+  references.rb:55          [string] Article.reorder(:title)                               # reorder
+  references.rb:64          [string] t = Article.arel_table[:title]                        # table subscript
+  references.rb:65          [string] Article.arel_table[:title].eq(value)                  # arel condition

@@ -1863,3 +1863,269 @@ def on_org_created_%[1]d(sender, instance, created, **kwargs):
 		}
 	}
 }
+
+// ── Rails string-based ORM reference tests ───────────────────────────────────
+
+func TestScanRubyStringRefs_SymbolArg(t *testing.T) {
+	dir := t.TempDir()
+	writeFile(t, dir, "app.rb", `Article.pluck(:email)`)
+
+	refs, _, err := ScanRubyStringRefs(dir, "email")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(refs) != 1 {
+		t.Fatalf("want 1 ref, got %d: %v", len(refs), refs)
+	}
+	if refs[0].Text != "[string] Article.pluck(:email)" {
+		t.Errorf("unexpected text: %q", refs[0].Text)
+	}
+}
+
+func TestScanRubyStringRefs_HashKeyArg(t *testing.T) {
+	dir := t.TempDir()
+	writeFile(t, dir, "app.rb", `Article.where(email: value)`)
+
+	refs, _, err := ScanRubyStringRefs(dir, "email")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(refs) != 1 {
+		t.Fatalf("want 1 ref, got %d: %v", len(refs), refs)
+	}
+	if refs[0].Text != "[string] Article.where(email: value)" {
+		t.Errorf("unexpected text: %q", refs[0].Text)
+	}
+}
+
+func TestScanRubyStringRefs_WhereSQLString(t *testing.T) {
+	dir := t.TempDir()
+	writeFile(t, dir, "app.rb", `Article.where("email = ?", value)`)
+
+	refs, _, err := ScanRubyStringRefs(dir, "email")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(refs) != 1 {
+		t.Fatalf("want 1 ref, got %d: %v", len(refs), refs)
+	}
+	if refs[0].Text != `[sql ref] Article.where("email = ?", value)` {
+		t.Errorf("unexpected text: %q", refs[0].Text)
+	}
+}
+
+func TestScanRubyStringRefs_WhereOnlyFirstStringArg(t *testing.T) {
+	// Bind parameters after the SQL template must not produce extra refs.
+	dir := t.TempDir()
+	writeFile(t, dir, "app.rb", `Article.where("email = ?", "email@example.com")`)
+
+	refs, _, err := ScanRubyStringRefs(dir, "email")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(refs) != 1 {
+		t.Fatalf("want exactly 1 ref (first string only), got %d: %v", len(refs), refs)
+	}
+}
+
+func TestScanRubyStringRefs_WhereNot(t *testing.T) {
+	dir := t.TempDir()
+	writeFile(t, dir, "app.rb", `Article.where.not(email: value)`)
+
+	refs, _, err := ScanRubyStringRefs(dir, "email")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(refs) != 1 {
+		t.Fatalf("want 1 ref, got %d: %v", len(refs), refs)
+	}
+	if refs[0].Text != "[string] Article.where.not(email: value)" {
+		t.Errorf("unexpected text: %q", refs[0].Text)
+	}
+}
+
+func TestScanRubyStringRefs_NotWithoutWhereNotMatched(t *testing.T) {
+	// .not(field: val) on a non-where receiver must not be reported.
+	dir := t.TempDir()
+	writeFile(t, dir, "app.rb", `something.not(email: value)`)
+
+	refs, _, err := ScanRubyStringRefs(dir, "email")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(refs) != 0 {
+		t.Errorf("want 0 refs for non-where .not, got %d: %v", len(refs), refs)
+	}
+}
+
+func TestScanRubyStringRefs_ArelTable(t *testing.T) {
+	dir := t.TempDir()
+	writeFile(t, dir, "app.rb", `Article.arel_table[:email]`)
+
+	refs, _, err := ScanRubyStringRefs(dir, "email")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(refs) != 1 {
+		t.Fatalf("want 1 ref, got %d: %v", len(refs), refs)
+	}
+	if refs[0].Text != "[string] Article.arel_table[:email]" {
+		t.Errorf("unexpected text: %q", refs[0].Text)
+	}
+}
+
+func TestScanRubyStringRefs_StringExactMatch(t *testing.T) {
+	// pluck("email") — exact string match → [string]
+	dir := t.TempDir()
+	writeFile(t, dir, "app.rb", `Article.pluck("email")`)
+
+	refs, _, err := ScanRubyStringRefs(dir, "email")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(refs) != 1 {
+		t.Fatalf("want 1 ref, got %d: %v", len(refs), refs)
+	}
+	if refs[0].Text != `[string] Article.pluck("email")` {
+		t.Errorf("unexpected text: %q", refs[0].Text)
+	}
+}
+
+func TestScanRubyStringRefs_StringSubstringMatch(t *testing.T) {
+	// order("email ASC") — substring match → [sql ref]
+	dir := t.TempDir()
+	writeFile(t, dir, "app.rb", `Article.order("email ASC")`)
+
+	refs, _, err := ScanRubyStringRefs(dir, "email")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(refs) != 1 {
+		t.Fatalf("want 1 ref, got %d: %v", len(refs), refs)
+	}
+	if refs[0].Text != `[sql ref] Article.order("email ASC")` {
+		t.Errorf("unexpected text: %q", refs[0].Text)
+	}
+}
+
+func TestScanRubyStringRefs_NoFalsePositiveOnSubstring(t *testing.T) {
+	// "subemail" must not match "email".
+	dir := t.TempDir()
+	writeFile(t, dir, "app.rb", `Article.pluck(:subemail)`)
+
+	refs, _, err := ScanRubyStringRefs(dir, "email")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(refs) != 0 {
+		t.Errorf("want 0 refs, got %d: %v", len(refs), refs)
+	}
+}
+
+func TestScanRuby_CombinesAttrAndStringRefs(t *testing.T) {
+	dir := t.TempDir()
+	writeFile(t, dir, "app.rb", "user.email\nArticle.pluck(:email)\n")
+
+	refs, _, err := ScanRuby(dir, "email")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(refs) != 2 {
+		t.Fatalf("want 2 refs (dot-access + symbol), got %d: %v", len(refs), refs)
+	}
+	// Results must be sorted by line.
+	if refs[0].Line != 1 || refs[1].Line != 2 {
+		t.Errorf("unexpected line order: %v", refs)
+	}
+}
+
+func TestScanRubyStringRefs_NotReceiverCallNotWhere(t *testing.T) {
+	// .not(field: val) where receiver is a non-where call must not be reported.
+	dir := t.TempDir()
+	writeFile(t, dir, "app.rb", `Article.scope.not(email: value)`)
+
+	refs, _, err := ScanRubyStringRefs(dir, "email")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(refs) != 0 {
+		t.Errorf("want 0 refs for non-where .not, got %d: %v", len(refs), refs)
+	}
+}
+
+func TestScanRubyStringRefs_WhereStringExactField(t *testing.T) {
+	// where("email") — exact field name as where string → [string]
+	dir := t.TempDir()
+	writeFile(t, dir, "app.rb", `Article.where("email")`)
+
+	refs, _, err := ScanRubyStringRefs(dir, "email")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(refs) != 1 {
+		t.Fatalf("want 1 ref, got %d: %v", len(refs), refs)
+	}
+	if refs[0].Text != `[string] Article.where("email")` {
+		t.Errorf("unexpected text: %q", refs[0].Text)
+	}
+}
+
+func TestScanRubyStringRefs_StringNoFieldNameNoMatch(t *testing.T) {
+	// order("status ASC") when looking for "email" — no match, exercises
+	// the no-occurrence path in rubyContainsField.
+	dir := t.TempDir()
+	writeFile(t, dir, "app.rb", `Article.order("status ASC")`)
+
+	refs, _, err := ScanRubyStringRefs(dir, "email")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(refs) != 0 {
+		t.Errorf("want 0 refs, got %d: %v", len(refs), refs)
+	}
+}
+
+func TestScanRubyStringRefs_EmptyStringArgNoMatch(t *testing.T) {
+	// order("") — empty string exercises rubyStringContent returning ""
+	// and the subsequent non-match path.
+	dir := t.TempDir()
+	writeFile(t, dir, "app.rb", `Article.order("")`)
+
+	refs, _, err := ScanRubyStringRefs(dir, "email")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(refs) != 0 {
+		t.Errorf("want 0 refs, got %d: %v", len(refs), refs)
+	}
+}
+
+func TestScanRubyStringRefs_FieldEmbeddedNoMatch(t *testing.T) {
+	// "subtitle" — "title" occurs but only inside a larger word with no following
+	// characters, triggering the start >= len(s) early-exit path in the loop.
+	dir := t.TempDir()
+	writeFile(t, dir, "app.rb", `Article.order("subtitle")`)
+
+	refs, _, err := ScanRubyStringRefs(dir, "title")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(refs) != 0 {
+		t.Errorf("want 0 refs (embedded), got %d: %v", len(refs), refs)
+	}
+}
+
+func TestScanRubyStringRefs_FieldAfterEmbeddedOccurrence(t *testing.T) {
+	// "user_id id ASC" — first "id" is inside "user_id" (non-boundary), second is
+	// a standalone word → should match. Exercises the looping in rubyContainsField.
+	dir := t.TempDir()
+	writeFile(t, dir, "app.rb", `Article.order("user_id id ASC")`)
+
+	refs, _, err := ScanRubyStringRefs(dir, "id")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(refs) != 1 {
+		t.Fatalf("want 1 ref (second occurrence matches), got %d: %v", len(refs), refs)
+	}
+}
