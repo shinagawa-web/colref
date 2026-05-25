@@ -63,6 +63,7 @@ if false
   # ── Arel ──────────────────────────────────────────────────────────────────────
   t = Article.arel_table[:title]                        # table subscript
   Article.arel_table[:title].eq(value)                  # arel condition
+  scope :titled, ->(v) { where(arel_table[:title].eq(v)) }  # implicit self
 
   # ── Model declarations ────────────────────────────────────────────────────────
   # (see app/models/article.rb for validates and scope patterns)
