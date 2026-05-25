@@ -48,6 +48,9 @@ test-e2e: build-e2e ## Run end-to-end tests
 clean-e2e: ## Remove e2e test binary
 	rm -f e2e/$(BINARY_NAME)-e2e-test
 
+update-golden: build-e2e ## Regenerate golden files for pattern battery tests
+	@cd e2e && $(GOTEST) . -run TestE2E_PatternBattery -update -v
+
 check-coverage: ## Run tests with coverage and enforce minimum threshold
 	@echo "Running tests with coverage (threshold: $(COVERAGE_THRESHOLD)%)..."
 	@coverage_file=$$(mktemp); \

@@ -2,10 +2,13 @@ package e2e
 
 import (
 	"bytes"
+	"flag"
 	"os"
 	"os/exec"
 	"testing"
 )
+
+var update = flag.Bool("update", false, "overwrite golden files with current output")
 
 const binaryName = "colref-e2e-test"
 
@@ -248,29 +251,33 @@ func TestE2E_MissingFlags(t *testing.T) {
 }
 
 func TestE2E_PatternBattery_Django(t *testing.T) {
-	out, err := run(t, "check", "--orm", "django", "--model", "Article", "--field", "title", "../test_patterns/django")
-	if err != nil {
-		t.Fatalf("unexpected error: %v\noutput:\n%s", err, out)
-	}
-	golden, err := os.ReadFile("../test_patterns/django/golden_title.txt")
-	if err != nil {
-		t.Fatalf("failed to read golden file: %v", err)
-	}
-	if !bytes.Equal(out, golden) {
-		t.Errorf("output differs from golden\ngot:\n%s\nwant:\n%s", out, golden)
-	}
+	runPatternBattery(t, "django", "../test_patterns/django/golden_title.txt",
+		"check", "--orm", "django", "--model", "Article", "--field", "title", "../test_patterns/django")
 }
 
 func TestE2E_PatternBattery_Rails(t *testing.T) {
-	out, err := run(t, "check", "--orm", "rails", "--model", "Article", "--field", "title", "../test_patterns/rails")
+	runPatternBattery(t, "rails", "../test_patterns/rails/golden_title.txt",
+		"check", "--orm", "rails", "--model", "Article", "--field", "title", "../test_patterns/rails")
+}
+
+func runPatternBattery(t *testing.T, name, goldenPath string, args ...string) {
+	t.Helper()
+	out, err := run(t, args...)
 	if err != nil {
 		t.Fatalf("unexpected error: %v\noutput:\n%s", err, out)
 	}
-	golden, err := os.ReadFile("../test_patterns/rails/golden_title.txt")
+	if *update {
+		if err := os.WriteFile(goldenPath, out, 0o644); err != nil {
+			t.Fatalf("failed to write golden file: %v", err)
+		}
+		t.Logf("updated golden file: %s", goldenPath)
+		return
+	}
+	golden, err := os.ReadFile(goldenPath)
 	if err != nil {
 		t.Fatalf("failed to read golden file: %v", err)
 	}
 	if !bytes.Equal(out, golden) {
-		t.Errorf("output differs from golden\ngot:\n%s\nwant:\n%s", out, golden)
+		t.Errorf("%s output differs from golden — run 'make update-golden' to refresh\ngot:\n%s\nwant:\n%s", name, out, golden)
 	}
 }

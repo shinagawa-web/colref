@@ -63,3 +63,12 @@ jobs:
 
       - name: Run e2e tests
         run: make test-e2e
+
+      - name: Check golden files are up-to-date
+        run: |
+          make update-golden
+          if ! git diff --exit-code test_patterns/; then
+            echo ""
+            echo "Golden files are out of date. Run 'make update-golden' and commit the changes."
+            exit 1
+          fi
