@@ -1,10 +1,14 @@
 package e2e
 
 import (
+	"bufio"
 	"bytes"
 	"flag"
+	"fmt"
 	"os"
 	"os/exec"
+	"path/filepath"
+	"strings"
 	"testing"
 )
 
@@ -252,15 +256,17 @@ func TestE2E_MissingFlags(t *testing.T) {
 
 func TestE2E_PatternBattery_Django(t *testing.T) {
 	runPatternBattery(t, "django", "../test_patterns/django/golden_title.txt",
+		[]string{"../test_patterns/django/references.py"},
 		"check", "--orm", "django", "--model", "Article", "--field", "title", "../test_patterns/django")
 }
 
 func TestE2E_PatternBattery_Rails(t *testing.T) {
 	runPatternBattery(t, "rails", "../test_patterns/rails/golden_title.txt",
+		[]string{"../test_patterns/rails/references.rb"},
 		"check", "--orm", "rails", "--model", "Article", "--field", "title", "../test_patterns/rails")
 }
 
-func runPatternBattery(t *testing.T, name, goldenPath string, args ...string) {
+func runPatternBattery(t *testing.T, name, goldenPath string, noRefFiles []string, args ...string) {
 	t.Helper()
 	out, err := run(t, args...)
 	if err != nil {
@@ -279,5 +285,31 @@ func runPatternBattery(t *testing.T, name, goldenPath string, args ...string) {
 	}
 	if !bytes.Equal(out, golden) {
 		t.Errorf("%s output differs from golden — run 'make update-golden' to refresh\ngot:\n%s\nwant:\n%s", name, out, golden)
+	}
+	assertNoRefs(t, out, noRefFiles)
+}
+
+// assertNoRefs scans srcFiles for lines marked [no-ref] and asserts none of
+// those line numbers appear in the colref output.
+func assertNoRefs(t *testing.T, out []byte, srcFiles []string) {
+	t.Helper()
+	for _, srcFile := range srcFiles {
+		f, err := os.Open(srcFile)
+		if err != nil {
+			t.Fatalf("assertNoRefs: cannot open %s: %v", srcFile, err)
+		}
+		base := filepath.Base(srcFile)
+		lineNum := 0
+		scanner := bufio.NewScanner(f)
+		for scanner.Scan() {
+			lineNum++
+			if strings.Contains(scanner.Text(), "[no-ref]") {
+				needle := fmt.Sprintf("%s:%d", base, lineNum)
+				if bytes.Contains(out, []byte(needle)) {
+					t.Errorf("[no-ref] line was detected but should not be: %s", needle)
+				}
+			}
+		}
+		f.Close()
 	}
 }

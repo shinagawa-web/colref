@@ -44,7 +44,7 @@ if False:
     x = getattr(article, 'title')                          # getattr literal
     x = getattr(article, 'title', '')                      # getattr with default
     x = operator.attrgetter('title')(article)              # attrgetter
-    x = getattr(article, field_name)                       # variable (not detectable)
+    x = getattr(article, field_name)                       # [no-ref] dynamic key in variable; field name not statically visible
 
     # ── ORM — lookup methods ──────────────────────────────────────────────────
     qs = Article.objects.filter(title='x')                 # filter keyword
