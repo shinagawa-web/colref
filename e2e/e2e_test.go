@@ -310,6 +310,8 @@ func assertNoRefs(t *testing.T, out []byte, srcFiles []string) {
 				}
 			}
 		}
-		f.Close()
+		if err := f.Close(); err != nil {
+			t.Fatalf("assertNoRefs: cannot close %s: %v", srcFile, err)
+		}
 	}
 }
