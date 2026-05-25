@@ -2094,6 +2094,22 @@ func TestScanRubyStringRefs_ArelTable(t *testing.T) {
 	}
 }
 
+func TestScanRubyStringRefs_ArelTableImplicitSelf(t *testing.T) {
+	dir := t.TempDir()
+	writeFile(t, dir, "app.rb", `scope :with_username, ->(v) { where(arel_table[:username].lower.in(v)) }`)
+
+	refs, _, err := ScanRubyStringRefs(dir, "username")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(refs) != 1 {
+		t.Fatalf("want 1 ref, got %d: %v", len(refs), refs)
+	}
+	if refs[0].Text != "[string] scope :with_username, ->(v) { where(arel_table[:username].lower.in(v)) }" {
+		t.Errorf("unexpected text: %q", refs[0].Text)
+	}
+}
+
 func TestScanRubyStringRefs_StringExactMatch(t *testing.T) {
 	// pluck("email") — exact string match → [string]
 	dir := t.TempDir()

@@ -229,12 +229,15 @@ func walkNodeRubyStringRefsInner(node *sitter.Node, src []byte, lines [][]byte, 
 		}
 
 	case "element_reference":
-		// Article.arel_table[:field]
+		// Article.arel_table[:field] or arel_table[:field] (implicit self)
 		if node.ChildCount() >= 3 {
 			receiver := node.Child(0)
-			if receiver != nil && receiver.Type() == "call" {
-				m := receiver.ChildByFieldName("method")
-				if m != nil && m.Content(src) == "arel_table" {
+			if receiver != nil {
+				isArelTable := (receiver.Type() == "call" &&
+					receiver.ChildByFieldName("method") != nil &&
+					receiver.ChildByFieldName("method").Content(src) == "arel_table") ||
+					(receiver.Type() == "identifier" && receiver.Content(src) == "arel_table")
+				if isArelTable {
 					for i := 1; i < int(node.ChildCount()); i++ {
 						sym := node.Child(i)
 						if sym.Type() == "simple_symbol" && rubySymbolName(sym, src) == fieldName {
