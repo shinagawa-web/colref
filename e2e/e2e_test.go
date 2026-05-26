@@ -1,11 +1,18 @@
 package e2e
 
 import (
+	"bufio"
 	"bytes"
+	"flag"
+	"fmt"
 	"os"
 	"os/exec"
+	"path/filepath"
+	"strings"
 	"testing"
 )
+
+var update = flag.Bool("update", false, "overwrite golden files with current output")
 
 const binaryName = "colref-e2e-test"
 
@@ -248,29 +255,63 @@ func TestE2E_MissingFlags(t *testing.T) {
 }
 
 func TestE2E_PatternBattery_Django(t *testing.T) {
-	out, err := run(t, "check", "--orm", "django", "--model", "Article", "--field", "title", "../test_patterns/django")
-	if err != nil {
-		t.Fatalf("unexpected error: %v\noutput:\n%s", err, out)
-	}
-	golden, err := os.ReadFile("../test_patterns/django/golden_title.txt")
-	if err != nil {
-		t.Fatalf("failed to read golden file: %v", err)
-	}
-	if !bytes.Equal(out, golden) {
-		t.Errorf("output differs from golden\ngot:\n%s\nwant:\n%s", out, golden)
-	}
+	runPatternBattery(t, "django", "../test_patterns/django/golden_title.txt",
+		[]string{"../test_patterns/django/references.py"},
+		"check", "--orm", "django", "--model", "Article", "--field", "title", "../test_patterns/django")
 }
 
 func TestE2E_PatternBattery_Rails(t *testing.T) {
-	out, err := run(t, "check", "--orm", "rails", "--model", "Article", "--field", "title", "../test_patterns/rails")
+	runPatternBattery(t, "rails", "../test_patterns/rails/golden_title.txt",
+		[]string{"../test_patterns/rails/references.rb"},
+		"check", "--orm", "rails", "--model", "Article", "--field", "title", "../test_patterns/rails")
+}
+
+func runPatternBattery(t *testing.T, name, goldenPath string, noRefFiles []string, args ...string) {
+	t.Helper()
+	out, err := run(t, args...)
 	if err != nil {
 		t.Fatalf("unexpected error: %v\noutput:\n%s", err, out)
 	}
-	golden, err := os.ReadFile("../test_patterns/rails/golden_title.txt")
+	if *update {
+		if err := os.WriteFile(goldenPath, out, 0o644); err != nil {
+			t.Fatalf("failed to write golden file: %v", err)
+		}
+		t.Logf("updated golden file: %s", goldenPath)
+		return
+	}
+	golden, err := os.ReadFile(goldenPath)
 	if err != nil {
 		t.Fatalf("failed to read golden file: %v", err)
 	}
 	if !bytes.Equal(out, golden) {
-		t.Errorf("output differs from golden\ngot:\n%s\nwant:\n%s", out, golden)
+		t.Errorf("%s output differs from golden — run 'make update-golden' to refresh\ngot:\n%s\nwant:\n%s", name, out, golden)
+	}
+	assertNoRefs(t, out, noRefFiles)
+}
+
+// assertNoRefs scans srcFiles for lines marked [no-ref] and asserts none of
+// those line numbers appear in the colref output.
+func assertNoRefs(t *testing.T, out []byte, srcFiles []string) {
+	t.Helper()
+	for _, srcFile := range srcFiles {
+		f, err := os.Open(srcFile)
+		if err != nil {
+			t.Fatalf("assertNoRefs: cannot open %s: %v", srcFile, err)
+		}
+		base := filepath.Base(srcFile)
+		lineNum := 0
+		scanner := bufio.NewScanner(f)
+		for scanner.Scan() {
+			lineNum++
+			if strings.Contains(scanner.Text(), "[no-ref]") {
+				needle := fmt.Sprintf("%s:%d", base, lineNum)
+				if bytes.Contains(out, []byte(needle)) {
+					t.Errorf("[no-ref] line was detected but should not be: %s", needle)
+				}
+			}
+		}
+		if err := f.Close(); err != nil {
+			t.Fatalf("assertNoRefs: cannot close %s: %v", srcFile, err)
+		}
 	}
 }

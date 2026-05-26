@@ -63,6 +63,7 @@ if false
   # ── Arel ──────────────────────────────────────────────────────────────────────
   t = Article.arel_table[:title]                        # table subscript
   Article.arel_table[:title].eq(value)                  # arel condition
+  scope :titled, ->(v) { where(arel_table[:title].eq(v)) }  # implicit self
 
   # ── Model declarations ────────────────────────────────────────────────────────
   # (see app/models/article.rb for validates and scope patterns)
@@ -73,9 +74,9 @@ if false
 
   # ── Dynamic / metaprogramming ─────────────────────────────────────────────────
   article.respond_to?(:title)                           # respond_to?
-  article.instance_variable_get(:@title)               # instance_variable_get (not detectable)
-  article.title_changed?                                # attribute_changed? (name-mangled)
-  Article.find_by_title(value)                          # dynamic finder (name-mangled)
+  article.instance_variable_get(:@title)               # [no-ref] @title is name-mangled; ivar name differs from field name
+  article.title_changed?                                # [no-ref] attribute_changed? suffix mangles the field name
+  Article.find_by_title(value)                          # [no-ref] dynamic finder encodes field name in method name
 
   # ── Raw SQL ───────────────────────────────────────────────────────────────────
   Article.find_by_sql("SELECT title FROM articles WHERE title = ?", value)    # find_by_sql string
