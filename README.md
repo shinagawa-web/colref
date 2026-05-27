@@ -1,5 +1,7 @@
 # colref
 
+[![codecov](https://codecov.io/gh/shinagawa-web/colref/graph/badge.svg)](https://codecov.io/gh/shinagawa-web/colref)
+
 Check whether a database column is still referenced in your codebase before you delete it.
 
 ## Why
