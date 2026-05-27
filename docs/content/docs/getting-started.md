@@ -11,13 +11,6 @@ Binaries for Linux and macOS are available on the [releases page](https://github
 
 Download the archive for your platform, extract it, and place the `colref` binary somewhere on your `PATH`.
 
-**macOS / Linux (example)**
-
-```sh
-curl -L https://github.com/shinagawa-web/colref/releases/latest/download/colref_linux_amd64.tar.gz | tar xz
-mv colref /usr/local/bin/
-```
-
 Verify the install:
 
 ```sh
@@ -28,20 +21,15 @@ colref --version
 
 ### Django project
 
-From your project root, run:
-
-```sh
-colref check --orm django --model Article --field title
-```
-
-colref finds all `models.py` files automatically, validates that `Article` has a `title` field, then walks your codebase reporting every live reference.
+The following example runs colref against [wagtail](https://github.com/wagtail/wagtail), a popular Django CMS.
 
 **No references found:**
 
 ```
-Scanning 87 files...
+$ colref check --orm django --model Page --field search_description
+Scanning 932 files...
 
-No references found for Article.title
+No references found for Page.search_description
 
   Verify manually before deleting.
 ```
@@ -49,25 +37,42 @@ No references found for Article.title
 **References found:**
 
 ```
-Scanning 87 files...
+$ colref check --orm django --model Page --field seo_title
+Scanning 932 files...
 
-References found for Article.title
+References found for Page.seo_title
 
-  blog/views.py:14     article.title
-  blog/views.py:55     article.title
-  blog/serializers.py:9  ✅ [string] .values("title")
-  blog/admin.py:22     ❌ list_display = ["title"]   (not detected)
+  wagtail/admin/tests/pages/test_create_page.py:1867   page.seo_title
+  wagtail/admin/tests/pages/test_create_page.py:1892   page.seo_title
 ```
 
 ### Rails project
 
-From your project root, run:
+The following example runs colref against [mastodon](https://github.com/mastodon/mastodon).
 
-```sh
-colref check --orm rails --model Article --field title
+**No references found:**
+
+```
+$ colref check --orm rails --model Account --field sensitized_at
+Scanning 1502 files...
+
+No references found for Account.sensitized_at
+
+  Verify manually before deleting.
 ```
 
-colref reads `db/schema.rb` (or falls back to replaying `db/migrate/`) to validate the field exists, then scans `.rb` and `.erb` files for references.
+**References found:**
+
+```
+$ colref check --orm rails --model Account --field memorial
+Scanning 1502 files...
+
+References found for Account.memorial
+
+  app/models/account.rb:176                                 [string] scope :without_memorial, -> { where(memorial: false) }
+  app/services/activitypub/process_account_service.rb:149   @account.memorial
+  app/services/delete_account_service.rb:231                @account.memorial
+```
 
 ## Next steps
 

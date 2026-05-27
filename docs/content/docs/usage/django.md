@@ -7,30 +7,29 @@ weight: 21
 
 ## Example
 
-```sh
-colref check --orm django --model User --field email
-```
+The following examples use [wagtail](https://github.com/wagtail/wagtail), a popular Django CMS.
 
-Output when no references exist:
+**No references found:**
 
 ```
-Scanning 142 files...
+$ colref check --orm django --model Page --field search_description
+Scanning 932 files...
 
-No references found for User.email
+No references found for Page.search_description
 
   Verify manually before deleting.
 ```
 
-Output when references exist:
+**References found:**
 
 ```
-Scanning 142 files...
+$ colref check --orm django --model Page --field seo_title
+Scanning 932 files...
 
-References found for User.email
+References found for Page.seo_title
 
-  accounts/serializers.py:34   user.email
-  accounts/views.py:88         obj.email
-  notifications/tasks.py:12    instance.email
+  wagtail/admin/tests/pages/test_create_page.py:1867   page.seo_title
+  wagtail/admin/tests/pages/test_create_page.py:1892   page.seo_title
 ```
 
 ## models.py detection
