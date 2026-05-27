@@ -19,9 +19,8 @@ jobs:
           - os: ubuntu-latest
             goos: linux
             goarch: arm64
-            cc: aarch64-linux-gnu-gcc
             apt: gcc-aarch64-linux-gnu
-          - os: macos-latest
+          - os: macos-13
             goos: darwin
             goarch: amd64
           - os: macos-latest
@@ -44,22 +43,21 @@ jobs:
         if: matrix.apt != ''
         run: sudo apt-get install -y ${{ matrix.apt }}
 
-      - name: Build and archive
+      - uses: goreleaser/goreleaser-action@v6
+        with:
+          version: "~> v2"
+          args: build --single-target --skip=validate
         env:
           GOOS: ${{ matrix.goos }}
           GOARCH: ${{ matrix.goarch }}
-          CGO_ENABLED: "1"
-          CC: ${{ matrix.cc }}
-        run: |
-          VERSION="${GITHUB_REF_NAME#v}"
-          go build -ldflags "-X main.version=${GITHUB_REF_NAME}" -o colref ./cmd/colref/
-          tar czf "colref_${VERSION}_${{ matrix.goos }}_${{ matrix.goarch }}.tar.gz" \
-            colref LICENSE README.md
+
+      - name: Rename artifacts.json for merge
+        run: mv dist/artifacts.json dist/artifacts-${{ matrix.goos }}-${{ matrix.goarch }}.json
 
       - uses: actions/upload-artifact@v7
         with:
-          name: colref-${{ matrix.goos }}-${{ matrix.goarch }}
-          path: "*.tar.gz"
+          name: dist-${{ matrix.goos }}-${{ matrix.goarch }}
+          path: dist/
 
   release:
     needs: build
@@ -67,21 +65,21 @@ jobs:
 
     steps:
       - uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
 
       - uses: actions/download-artifact@v8
         with:
-          path: artifacts/
+          path: dist/
           merge-multiple: true
 
-      - name: Create checksums
-        run: sha256sum artifacts/*.tar.gz > artifacts/checksums.txt
+      - name: Merge artifacts.json
+        run: jq -s 'flatten' dist/artifacts-*.json > dist/artifacts.json
 
-      - name: Create GitHub Release
-        run: |
-          gh release create "$GITHUB_REF_NAME" \
-            artifacts/*.tar.gz \
-            artifacts/checksums.txt \
-            --title "$GITHUB_REF_NAME" \
-            --generate-notes
+      - uses: goreleaser/goreleaser-action@v6
+        with:
+          version: "~> v2"
+          args: release --skip=build
         env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          HOMEBREW_TAP_GITHUB_TOKEN: ${{ secrets.HOMEBREW_TAP_GITHUB_TOKEN }}
