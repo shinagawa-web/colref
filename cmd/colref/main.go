@@ -5,7 +5,10 @@ import (
 	"os"
 )
 
-var exit = os.Exit
+var (
+	exit    = os.Exit
+	version = "dev"
+)
 
 func main() {
 	if err := rootCmd.Execute(); err != nil {
