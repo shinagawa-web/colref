@@ -1,6 +1,10 @@
 # colref
 
+![Test](https://github.com/shinagawa-web/colref/actions/workflows/test.yml/badge.svg)
 [![codecov](https://codecov.io/gh/shinagawa-web/colref/graph/badge.svg)](https://codecov.io/gh/shinagawa-web/colref)
+[![Go Report Card](https://goreportcard.com/badge/github.com/shinagawa-web/colref)](https://goreportcard.com/report/github.com/shinagawa-web/colref)
+[![Go Reference](https://pkg.go.dev/badge/github.com/shinagawa-web/colref.svg)](https://pkg.go.dev/github.com/shinagawa-web/colref)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 
 Check whether a database column is still referenced in your codebase before you delete it.
 
