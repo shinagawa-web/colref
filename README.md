@@ -93,6 +93,12 @@ The following directories are never scanned:
 
 ## Installation
 
+### Homebrew (macOS and Linux)
+
+```sh
+brew install shinagawa-web/tap/colref
+```
+
 ### One-line installer (Linux and macOS)
 
 ```sh
