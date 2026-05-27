@@ -102,7 +102,12 @@ jobs:
           cache: false
 
       - name: Install via go install
-        run: go install github.com/shinagawa-web/colref/cmd/colref@latest
+        run: |
+          for i in 1 2 3 4 5; do
+            go install github.com/shinagawa-web/colref/cmd/colref@latest && break
+            echo "Attempt $i failed, retrying in 60s..."
+            sleep 60
+          done
 
       - name: Verify binary runs
         run: colref --version
