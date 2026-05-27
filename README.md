@@ -105,7 +105,7 @@ colref uses static AST analysis and cannot detect every reference pattern. Refer
 
 **Rails:** attribute access, most ActiveRecord query/creation/update methods (`where`, `order`, `pluck`, `create`, `update`, `find_by`, etc.), Arel subscripts, and SQL string fragments are detected. Not detected: `read_attribute`, `send`, symbol subscript (`record[:field]`), `validates` declarations, and strong parameters.
 
-For the full per-pattern breakdown, see [docs/detection-patterns.md](docs/detection-patterns.md).
+For the full per-pattern breakdown, see [docs/content/docs/detection-patterns.md](docs/content/docs/detection-patterns.md).
 
 If colref reports no references, treat it as "none found by the scanner" — not as a guarantee the column is unused.
 

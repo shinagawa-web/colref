@@ -1,17 +1,15 @@
+---
+title: Detection patterns
+weight: 40
+---
+
 # Detection patterns
 
 colref uses static AST analysis. It can only detect patterns where the field name appears as a literal in the source. References where the field name is constructed at runtime (e.g. `getattr(obj, field_name)`) are out of scope by design — static analysis cannot determine what string `field_name` holds.
 
-This page documents exactly which patterns are and are not detected for each ORM.
+This page documents exactly which patterns are and are not detected for each ORM. The ground truth is the golden test files in `test_patterns/`.
 
-> **Note:** This page may lag behind the code. The golden files are enforced by CI and are always up to date — when in doubt, check those first.
->
-> - [`test_patterns/django/golden_title.txt`](../test_patterns/django/golden_title.txt) — currently detected Django patterns
-> - [`test_patterns/rails/golden_title.txt`](../test_patterns/rails/golden_title.txt) — currently detected Rails patterns
-> - [`test_patterns/django/references.py`](../test_patterns/django/references.py) — full Django pattern set under test (detected + not detected)
-> - [`test_patterns/rails/references.rb`](../test_patterns/rails/references.rb) — full Rails pattern set under test (detected + not detected)
-
-### Output labels
+## Output labels
 
 All three mean the reference was detected. The label indicates how it was found and how confident the match is.
 
@@ -21,7 +19,7 @@ All three mean the reference was detected. The label indicates how it was found 
 | ✅ `[string]` | Literal string or symbol passed to a known ORM method (`.where(title: value)`, `.pluck(:title)`) | High — method is known to accept field names |
 | ✅ `[sql ref]` | Word-boundary substring match inside a raw SQL string (`.where("title = ?", value)`) | Lower — verify manually, false positives possible |
 
-## Django
+## Django {#django}
 
 ### Detected
 
@@ -176,7 +174,7 @@ The field name appears as the first positional string argument.
 
 ---
 
-## Rails
+## Rails {#rails}
 
 ### Detected
 
