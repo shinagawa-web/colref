@@ -98,7 +98,7 @@ jobs:
           SHA_LINUX_ARM64=$(grep "colref_${VERSION}_linux_arm64.tar.gz" artifacts/checksums.txt | awk '{print $1}')
           cat > colref.rb << FORMULA
           class Colref < Formula
-            desc "Check whether a database column is still referenced in your codebase before you delete it."
+            desc "Check whether a database column is still referenced in your codebase before you delete it"
             homepage "https://github.com/shinagawa-web/colref"
             version "${VERSION}"
             license "MIT"
@@ -137,14 +137,14 @@ jobs:
           if [ -n "$CURRENT_SHA" ]; then
             gh api repos/shinagawa-web/homebrew-tap/contents/Formula/colref.rb \
               --method PUT \
-              --field message="Bump colref to ${GITHUB_REF_NAME}" \
-              --field "content=${CONTENT}" \
-              --field "sha=${CURRENT_SHA}"
+              --raw-field message="Bump colref to ${GITHUB_REF_NAME}" \
+              --raw-field "content=${CONTENT}" \
+              --raw-field "sha=${CURRENT_SHA}"
           else
             gh api repos/shinagawa-web/homebrew-tap/contents/Formula/colref.rb \
               --method PUT \
-              --field message="Bump colref to ${GITHUB_REF_NAME}" \
-              --field "content=${CONTENT}"
+              --raw-field message="Bump colref to ${GITHUB_REF_NAME}" \
+              --raw-field "content=${CONTENT}"
           fi
 
   go-install-check:
