@@ -28,7 +28,7 @@ No references found for User.email
   Verify manually before deleting.
 ```
 
-→ [Getting started]({{< relref "/docs/getting-started" >}}) — installation and first run  
-→ [Usage]({{< relref "/docs/usage/_index" >}}) — flags reference and ORM-specific behavior  
-→ [How it works]({{< relref "/docs/how-it-works" >}}) — AST parsing and schema extraction  
-→ [Detection patterns]({{< relref "/docs/detection-patterns" >}}) — what is and isn't detected  
+→ [Getting started]({{< relref "docs/getting-started" >}}) — installation and first run  
+→ [Usage]({{< relref "docs/usage/_index" >}}) — flags reference and ORM-specific behavior  
+→ [How it works]({{< relref "docs/how-it-works" >}}) — AST parsing and schema extraction  
+→ [Detection patterns]({{< relref "docs/detection-patterns" >}}) — what is and isn't detected  
