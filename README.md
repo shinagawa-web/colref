@@ -29,7 +29,6 @@ Scanning 142 files...
 
 No references found for User.email
 
-  String-based ORM calls (e.g. .values(), .defer()) are not detected.
   Verify manually before deleting.
 ```
 
@@ -100,29 +99,19 @@ AST parsing avoids false positives from comments, migration files, and unrelated
 
 ## Limitations
 
-v0.1 detects attribute-access references only (e.g. `user.email`). String-based ORM calls like `.values('email')`, `.defer('email')`, or `Q(email=...)` pass the column name as a string argument and are not yet covered. Support for these patterns will be added in a future version, as it requires per-ORM knowledge of which methods accept column names as strings.
+colref uses static AST analysis and cannot detect every reference pattern. References where the field name is constructed at runtime (e.g. `getattr(obj, field_name)`) are out of scope by design.
 
-If colref reports no references, treat it as "none found in attribute-access form" — not as a guarantee the column is unused.
+**Django:** attribute access, most ORM methods (`filter`, `exclude`, `get`, `Q`, `values`, `only`, `defer`, `order_by`, `F`, aggregates, etc.), and raw SQL strings are detected. Not detected: `getattr` / `attrgetter`, `update_or_create`, `save(update_fields=[...])`, `_meta.get_field`, Django admin class attributes, DRF serializer fields, and form fields.
+
+**Rails:** attribute access, most ActiveRecord query/creation/update methods (`where`, `order`, `pluck`, `create`, `update`, `find_by`, etc.), Arel subscripts, and SQL string fragments are detected. Not detected: `read_attribute`, `send`, symbol subscript (`record[:field]`), `validates` declarations, and strong parameters.
+
+For the full per-pattern breakdown, see [docs/detection-patterns.md](docs/detection-patterns.md).
+
+If colref reports no references, treat it as "none found by the scanner" — not as a guarantee the column is unused.
 
 ## Roadmap
 
-### v0.1 — Django
-
-Fields are declared explicitly in `models.py`, which makes parsing straightforward. The repository alone contains everything colref needs — no database connection required.
-
-### v0.2 — Rails
-
-Schema is consolidated in `db/schema.rb`. ActiveRecord models follow predictable naming conventions (`User` → `users`), though custom table names need handling.
-
-### v0.3 — Laravel
-
-Schema is spread across many migration files rather than a single source of truth, which makes field extraction more involved compared to Django and Rails.
-
-### Later — Spring / JPA, SQLAlchemy, Entity Framework, TypeORM / Prisma
-
-These will be evaluated after v0.3. Each framework will be scoped separately at that point.
-
-Each version ships only after the previous one is stable. Priorities may shift based on feedback.
+See [issue #74](https://github.com/shinagawa-web/colref/issues/74).
 
 ## License
 
