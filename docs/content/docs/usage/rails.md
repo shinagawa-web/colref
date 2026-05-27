@@ -7,11 +7,31 @@ weight: 22
 
 ## Example
 
-```sh
-colref check --orm rails --model User --field email
+The following examples use [mastodon](https://github.com/mastodon/mastodon).
+
+**No references found:**
+
+```
+$ colref check --orm rails --model Account --field sensitized_at
+Scanning 1502 files...
+
+No references found for Account.sensitized_at
+
+  Verify manually before deleting.
 ```
 
-colref reads `db/schema.rb` from the project root, infers model names from table names (`users` → `User`), and scans `.rb` and `.erb` files for attribute-access references.
+**References found:**
+
+```
+$ colref check --orm rails --model Account --field memorial
+Scanning 1502 files...
+
+References found for Account.memorial
+
+  app/models/account.rb:176                                 [string] scope :without_memorial, -> { where(memorial: false) }
+  app/services/activitypub/process_account_service.rb:149   @account.memorial
+  app/services/delete_account_service.rb:231                @account.memorial
+```
 
 ## Schema source
 
