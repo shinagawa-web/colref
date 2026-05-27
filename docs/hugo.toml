@@ -1,0 +1,18 @@
+baseURL = "https://shinagawa-web.github.io/colref/"
+languageCode = "en-us"
+title = "colref"
+
+[module]
+  [[module.imports]]
+    path = "github.com/alex-shpak/hugo-book"
+
+[params]
+  BookTheme = "auto"
+  BookSearch = true
+  BookRepo = "https://github.com/shinagawa-web/colref"
+  BookToC = true
+
+[markup]
+  [markup.goldmark]
+    [markup.goldmark.renderer]
+      unsafe = true
