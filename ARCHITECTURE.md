@@ -86,13 +86,6 @@ Skipped directories: `spec`, `test`, `vendor`, `migrate`, `node_modules` (`inter
 
 `internal/refs/scan.go:scanFiles` is the shared file walker used by both ORMs. Each file extension can carry an optional source transform (used for ERB above); the transform must preserve `len(src)` so that tree-sitter byte offsets remain valid. Per-file results are deduped by line before merging (`dedupeByLine`).
 
-### Known limitations and extension points
+### Adding a new ORM target
 
-| Limitation | Location |
-|---|---|
-| Rails `self.table_name` overrides not handled | `internal/schema/rails_schema.go:tableToModel` |
-| Irregular plurals (e.g., `people` → `Person`) not singularized | `internal/schema/rails_schema.go:singularize` |
-| `db/structure.sql` not yet a schema source for Rails | [#97](https://github.com/shinagawa-web/colref/issues/97) |
-| Django model detection requires files to be found by `findModelsFiles` | `cmd/colref/check.go:findModelsFiles` |
-
-To add a new ORM target: implement `orm.SchemaParser` and `orm.ReferenceScanner` (`internal/orm/orm.go`), wire a new `--orm` value in `cmd/colref/check.go:runCheck`, and add the language grammar via `go-tree-sitter`.
+Implement `orm.SchemaParser` and `orm.ReferenceScanner` (`internal/orm/orm.go`), wire a new `--orm` value in `cmd/colref/check.go:runCheck`, and add the language grammar via `go-tree-sitter`.
