@@ -5,9 +5,13 @@ import (
 	"os"
 )
 
-var exit = os.Exit
+var (
+	exit    = os.Exit
+	version = "dev"
+)
 
 func main() {
+	rootCmd.Version = version
 	if err := rootCmd.Execute(); err != nil {
 		fmt.Fprintln(os.Stderr, err)
 		exit(1)

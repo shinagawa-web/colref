@@ -52,7 +52,7 @@ jobs:
           CC: ${{ matrix.cc }}
         run: |
           VERSION="${GITHUB_REF_NAME#v}"
-          go build -o colref ./cmd/colref/
+          go build -ldflags "-X main.version=${GITHUB_REF_NAME}" -o colref ./cmd/colref/
           tar czf "colref_${VERSION}_${{ matrix.goos }}_${{ matrix.goarch }}.tar.gz" \
             colref LICENSE README.md
 
