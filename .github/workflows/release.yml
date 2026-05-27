@@ -1,0 +1,148 @@
+name: release
+
+on:
+  push:
+    tags:
+      - 'v*'
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    strategy:
+      matrix:
+        include:
+          - os: ubuntu-latest
+            goos: linux
+            goarch: amd64
+          - os: ubuntu-latest
+            goos: linux
+            goarch: arm64
+            cc: aarch64-linux-gnu-gcc
+            apt: gcc-aarch64-linux-gnu
+          - os: macos-latest
+            goos: darwin
+            goarch: amd64
+          - os: macos-latest
+            goos: darwin
+            goarch: arm64
+
+    runs-on: ${{ matrix.os }}
+
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+
+      - uses: actions/setup-go@v6
+        with:
+          go-version-file: go.mod
+          cache: true
+
+      - name: Install cross-compiler
+        if: matrix.apt != ''
+        run: sudo apt-get install -y ${{ matrix.apt }}
+
+      - name: Build and archive
+        env:
+          GOOS: ${{ matrix.goos }}
+          GOARCH: ${{ matrix.goarch }}
+          CGO_ENABLED: "1"
+          CC: ${{ matrix.cc }}
+        run: |
+          VERSION="${GITHUB_REF_NAME#v}"
+          go build -ldflags "-X main.version=${GITHUB_REF_NAME}" -o colref ./cmd/colref/
+          tar czf "colref_${VERSION}_${{ matrix.goos }}_${{ matrix.goarch }}.tar.gz" \
+            colref LICENSE README.md
+
+      - uses: actions/upload-artifact@v7
+        with:
+          name: colref-${{ matrix.goos }}-${{ matrix.goarch }}
+          path: "*.tar.gz"
+
+  release:
+    needs: build
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v6
+
+      - uses: actions/download-artifact@v8
+        with:
+          path: artifacts/
+          merge-multiple: true
+
+      - name: Create checksums
+        run: sha256sum artifacts/*.tar.gz > artifacts/checksums.txt
+
+      - name: Create GitHub Release
+        run: |
+          gh release create "$GITHUB_REF_NAME" \
+            artifacts/*.tar.gz \
+            artifacts/checksums.txt \
+            --title "$GITHUB_REF_NAME" \
+            --generate-notes
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Update Homebrew formula
+        env:
+          GH_TOKEN: ${{ secrets.HOMEBREW_TAP_GITHUB_TOKEN }}
+        run: |
+          VERSION="${GITHUB_REF_NAME#v}"
+          BASE="https://github.com/shinagawa-web/colref/releases/download/${GITHUB_REF_NAME}"
+          SHA_DARWIN_AMD64=$(grep "colref_${VERSION}_darwin_amd64.tar.gz" artifacts/checksums.txt | awk '{print $1}')
+          SHA_DARWIN_ARM64=$(grep "colref_${VERSION}_darwin_arm64.tar.gz" artifacts/checksums.txt | awk '{print $1}')
+          SHA_LINUX_AMD64=$(grep "colref_${VERSION}_linux_amd64.tar.gz" artifacts/checksums.txt | awk '{print $1}')
+          SHA_LINUX_ARM64=$(grep "colref_${VERSION}_linux_arm64.tar.gz" artifacts/checksums.txt | awk '{print $1}')
+          cat > colref.rb << FORMULA
+          class Colref < Formula
+            desc "Check whether a database column is still referenced in your codebase before you delete it."
+            homepage "https://github.com/shinagawa-web/colref"
+            version "${VERSION}"
+            license "MIT"
+
+            on_macos do
+              if Hardware::CPU.arm?
+                url "${BASE}/colref_${VERSION}_darwin_arm64.tar.gz"
+                sha256 "${SHA_DARWIN_ARM64}"
+              else
+                url "${BASE}/colref_${VERSION}_darwin_amd64.tar.gz"
+                sha256 "${SHA_DARWIN_AMD64}"
+              end
+            end
+
+            on_linux do
+              if Hardware::CPU.arm?
+                url "${BASE}/colref_${VERSION}_linux_arm64.tar.gz"
+                sha256 "${SHA_LINUX_ARM64}"
+              else
+                url "${BASE}/colref_${VERSION}_linux_amd64.tar.gz"
+                sha256 "${SHA_LINUX_AMD64}"
+              end
+            end
+
+            def install
+              bin.install "colref"
+            end
+
+            test do
+              system "#{bin}/colref", "--version"
+            end
+          end
+          FORMULA
+          CONTENT=$(base64 -w 0 colref.rb)
+          CURRENT_SHA=$(gh api repos/shinagawa-web/homebrew-tap/contents/Formula/colref.rb --jq '.sha' 2>/dev/null || true)
+          if [ -n "$CURRENT_SHA" ]; then
+            gh api repos/shinagawa-web/homebrew-tap/contents/Formula/colref.rb \
+              --method PUT \
+              --field message="Bump colref to ${GITHUB_REF_NAME}" \
+              --field "content=${CONTENT}" \
+              --field "sha=${CURRENT_SHA}"
+          else
+            gh api repos/shinagawa-web/homebrew-tap/contents/Formula/colref.rb \
+              --method PUT \
+              --field message="Bump colref to ${GITHUB_REF_NAME}" \
+              --field "content=${CONTENT}"
+          fi
