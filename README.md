@@ -98,7 +98,7 @@ Installs the latest release binary to `/usr/local/bin`. The script detects your 
 To install to a different directory, set `INSTALL_DIR`:
 
 ```sh
-curl -fsSL https://raw.githubusercontent.com/shinagawa-web/colref/main/install.sh | INSTALL_DIR=~/.local/bin sh
+curl -fsSL https://raw.githubusercontent.com/shinagawa-web/colref/main/install.sh | INSTALL_DIR=$HOME/.local/bin sh
 ```
 
 ### Manual download

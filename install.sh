@@ -49,8 +49,8 @@ if command -v sha256sum >/dev/null 2>&1; then
 elif command -v shasum >/dev/null 2>&1; then
   ACTUAL=$(shasum -a 256 "${TARBALL}" | awk '{print $1}')
 else
-  echo "warning: sha256sum and shasum not found; skipping checksum verification" >&2
-  ACTUAL="${EXPECTED}"
+  echo "error: sha256sum or shasum is required for checksum verification" >&2
+  exit 1
 fi
 if [ "${ACTUAL}" != "${EXPECTED}" ]; then
   echo "error: checksum mismatch for ${TARBALL}" >&2
@@ -59,11 +59,11 @@ fi
 
 tar -xzf "${TARBALL}"
 
-mkdir -p "${INSTALL_DIR}"
-if [ -w "${INSTALL_DIR}" ]; then
+if [ -d "${INSTALL_DIR}" ] && [ -w "${INSTALL_DIR}" ]; then
   mv "${BINARY}" "${INSTALL_DIR}/${BINARY}"
 else
   echo "Requesting elevated permissions to install to ${INSTALL_DIR}..."
+  sudo mkdir -p "${INSTALL_DIR}"
   sudo mv "${BINARY}" "${INSTALL_DIR}/${BINARY}"
 fi
 
