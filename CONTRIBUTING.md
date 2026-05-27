@@ -2,7 +2,7 @@
 
 ## Setup
 
-**Prerequisites:** Go 1.21+
+**Prerequisites:** Go 1.25+
 
 ```sh
 git clone https://github.com/shinagawa-web/colref.git
