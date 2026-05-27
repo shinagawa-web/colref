@@ -11,7 +11,6 @@ var (
 )
 
 func main() {
-	rootCmd.Version = version
 	if err := rootCmd.Execute(); err != nil {
 		fmt.Fprintln(os.Stderr, err)
 		exit(1)
