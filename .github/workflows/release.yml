@@ -86,6 +86,67 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
+      - name: Update Homebrew formula
+        env:
+          GH_TOKEN: ${{ secrets.HOMEBREW_TAP_GITHUB_TOKEN }}
+        run: |
+          VERSION="${GITHUB_REF_NAME#v}"
+          BASE="https://github.com/shinagawa-web/colref/releases/download/${GITHUB_REF_NAME}"
+          SHA_DARWIN_AMD64=$(grep "colref_${VERSION}_darwin_amd64.tar.gz" artifacts/checksums.txt | awk '{print $1}')
+          SHA_DARWIN_ARM64=$(grep "colref_${VERSION}_darwin_arm64.tar.gz" artifacts/checksums.txt | awk '{print $1}')
+          SHA_LINUX_AMD64=$(grep "colref_${VERSION}_linux_amd64.tar.gz" artifacts/checksums.txt | awk '{print $1}')
+          SHA_LINUX_ARM64=$(grep "colref_${VERSION}_linux_arm64.tar.gz" artifacts/checksums.txt | awk '{print $1}')
+          cat > colref.rb << FORMULA
+          class Colref < Formula
+            desc "Check whether a database column is still referenced in your codebase before you delete it"
+            homepage "https://github.com/shinagawa-web/colref"
+            version "${VERSION}"
+            license "MIT"
+
+            on_macos do
+              if Hardware::CPU.arm?
+                url "${BASE}/colref_${VERSION}_darwin_arm64.tar.gz"
+                sha256 "${SHA_DARWIN_ARM64}"
+              else
+                url "${BASE}/colref_${VERSION}_darwin_amd64.tar.gz"
+                sha256 "${SHA_DARWIN_AMD64}"
+              end
+            end
+
+            on_linux do
+              if Hardware::CPU.arm?
+                url "${BASE}/colref_${VERSION}_linux_arm64.tar.gz"
+                sha256 "${SHA_LINUX_ARM64}"
+              else
+                url "${BASE}/colref_${VERSION}_linux_amd64.tar.gz"
+                sha256 "${SHA_LINUX_AMD64}"
+              end
+            end
+
+            def install
+              bin.install "colref"
+            end
+
+            test do
+              system "#{bin}/colref", "--version"
+            end
+          end
+          FORMULA
+          CONTENT=$(base64 -w 0 colref.rb)
+          CURRENT_SHA=$(gh api repos/shinagawa-web/homebrew-tap/contents/Formula/colref.rb --jq '.sha' 2>/dev/null || true)
+          if [ -n "$CURRENT_SHA" ]; then
+            gh api repos/shinagawa-web/homebrew-tap/contents/Formula/colref.rb \
+              --method PUT \
+              --raw-field message="Bump colref to ${GITHUB_REF_NAME}" \
+              --raw-field "content=${CONTENT}" \
+              --raw-field "sha=${CURRENT_SHA}"
+          else
+            gh api repos/shinagawa-web/homebrew-tap/contents/Formula/colref.rb \
+              --method PUT \
+              --raw-field message="Bump colref to ${GITHUB_REF_NAME}" \
+              --raw-field "content=${CONTENT}"
+          fi
+
   go-install-check:
     needs: release
     runs-on: ubuntu-latest
