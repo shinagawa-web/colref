@@ -87,7 +87,23 @@ The following directories are never scanned:
 
 ## Installation
 
-Binaries for Linux and macOS will be available on the [releases page](https://github.com/shinagawa-web/colref/releases) once the first version ships.
+### One-line installer (Linux and macOS)
+
+```sh
+curl -fsSL https://raw.githubusercontent.com/shinagawa-web/colref/main/install.sh | sh
+```
+
+Installs the latest release binary to `/usr/local/bin`. The script detects your OS and architecture automatically, downloads the matching tarball from the [releases page](https://github.com/shinagawa-web/colref/releases), and verifies the SHA-256 checksum before installing.
+
+To install to a different directory, set `INSTALL_DIR`:
+
+```sh
+curl -fsSL https://raw.githubusercontent.com/shinagawa-web/colref/main/install.sh | INSTALL_DIR=~/.local/bin sh
+```
+
+### Manual download
+
+Pre-built binaries are also available directly on the [releases page](https://github.com/shinagawa-web/colref/releases).
 
 ## How it works
 
