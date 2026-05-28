@@ -5,6 +5,8 @@
 [![Go Report Card](https://goreportcard.com/badge/github.com/shinagawa-web/colref)](https://goreportcard.com/report/github.com/shinagawa-web/colref)
 [![Go Reference](https://pkg.go.dev/badge/github.com/shinagawa-web/colref.svg)](https://pkg.go.dev/github.com/shinagawa-web/colref)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
+[![Gem Version](https://badge.fury.io/rb/colref.svg)](https://rubygems.org/gems/colref)
+[![PyPI version](https://badge.fury.io/py/colref.svg)](https://pypi.org/project/colref/)
 
 Check whether a database column is still referenced in your codebase before you delete it.
 
