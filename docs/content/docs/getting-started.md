@@ -7,9 +7,36 @@ weight: 10
 
 ## Installation
 
-Binaries for Linux and macOS are available on the [releases page](https://github.com/shinagawa-web/colref/releases).
+### Homebrew (macOS and Linux)
 
-Download the archive for your platform, extract it, and place the `colref` binary somewhere on your `PATH`.
+```sh
+brew install shinagawa-web/tap/colref
+```
+
+If you prefer to tap first:
+
+```sh
+brew tap shinagawa-web/tap
+brew install colref
+```
+
+### One-line installer (Linux and macOS)
+
+```sh
+curl -fsSL https://raw.githubusercontent.com/shinagawa-web/colref/main/install.sh | sh
+```
+
+Installs the latest release binary to `/usr/local/bin`. The script detects your OS and architecture automatically, downloads the matching tarball from the [releases page](https://github.com/shinagawa-web/colref/releases), and verifies the SHA-256 checksum before installing.
+
+To install to a different directory, set `INSTALL_DIR`:
+
+```sh
+curl -fsSL https://raw.githubusercontent.com/shinagawa-web/colref/main/install.sh | INSTALL_DIR=$HOME/.local/bin sh
+```
+
+### Manual download
+
+Pre-built binaries are also available directly on the [releases page](https://github.com/shinagawa-web/colref/releases).
 
 Verify the install:
 
