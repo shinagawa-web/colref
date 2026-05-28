@@ -13,6 +13,20 @@ weight: 10
 | Linux | ✓ | ✓ |
 | Windows | ✓ | — |
 
+### pip / pipx (Python users)
+
+If you are working on a Django or Python project, install via pipx or pip. No Go installation required.
+
+```sh
+pipx install colref
+```
+
+Or with pip:
+
+```sh
+pip install colref
+```
+
 ### Homebrew (macOS and Linux)
 
 ```sh

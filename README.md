@@ -16,6 +16,20 @@ colref scans your codebase with an AST parser, skips comments and string literal
 
 ## Installation
 
+### pip / pipx (Python users)
+
+If you are working on a Django or Python project, the easiest way to install colref is via pip or pipx. No Go installation required.
+
+```sh
+pipx install colref
+```
+
+Or with pip:
+
+```sh
+pip install colref
+```
+
 | OS | x86_64 (Intel/AMD) | arm64 |
 |---|---|---|
 | macOS | ✓ | ✓ (Apple Silicon) |

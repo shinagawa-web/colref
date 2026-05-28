@@ -67,6 +67,7 @@ def _build_wheel(
     bin_name: str,
     binary_data: bytes,
     license_data: bytes,
+    readme_data: bytes,
     out_dir: Path,
 ) -> None:
     wheel_filename = f"colref-{version}-py3-none-{platform_tag}.whl"
@@ -89,6 +90,9 @@ def _build_wheel(
         f"Keywords: django,rails,database,linter\n"
         f"Project-URL: Source, https://github.com/shinagawa-web/colref\n"
         f"Project-URL: Bug Tracker, https://github.com/shinagawa-web/colref/issues\n"
+        f"Description-Content-Type: text/markdown\n"
+        f"\n"
+        + readme_data.decode()
     )
 
     wheel_meta = (
@@ -135,8 +139,9 @@ def main() -> None:
     out_dir = Path("dist")
     out_dir.mkdir(exist_ok=True)
 
-    license_path = Path(__file__).parent.parent / "LICENSE"
-    license_data = license_path.read_bytes()
+    repo_root = Path(__file__).parent.parent
+    license_data = (repo_root / "LICENSE").read_bytes()
+    readme_data = (repo_root / "README.md").read_bytes()
 
     for goos, goarch, platform_tag, bin_name in PLATFORMS:
         tarball = artifacts_dir / f"colref_{raw_version}_{goos}_{goarch}.tar.gz"
@@ -151,7 +156,7 @@ def main() -> None:
                 raise RuntimeError(f"{bin_name} is not a regular file in {tarball.name}")
             binary_data = f.read()
 
-        _build_wheel(version, platform_tag, bin_name, binary_data, license_data, out_dir)
+        _build_wheel(version, platform_tag, bin_name, binary_data, license_data, readme_data, out_dir)
 
 
 if __name__ == "__main__":
