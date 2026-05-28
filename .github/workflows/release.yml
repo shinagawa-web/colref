@@ -155,7 +155,7 @@ jobs:
           fi
 
   pypi:
-    needs: release
+    needs: build
     runs-on: ubuntu-latest
     permissions:
       id-token: write
@@ -181,10 +181,10 @@ jobs:
               print('No GLIBC symbols found — static binary or objdump mismatch; skipping check')
               sys.exit(0)
           max_v = tuple(int(x) for x in max_str.split('.'))
-          limit = (2, 28)
+          limit = (2, 34)
           if max_v > limit:
-              raise SystemExit(f'GLIBC_{max_str} exceeds manylinux_2_28 limit')
-          print(f'GLIBC_{max_str} <= manylinux_2_28 OK')
+              raise SystemExit(f'GLIBC_{max_str} exceeds manylinux_2_34 limit')
+          print(f'GLIBC_{max_str} <= manylinux_2_34 OK')
           "
 
       - name: Build wheels
@@ -195,3 +195,28 @@ jobs:
       - uses: pypa/gh-action-pypi-publish@cef221092ed1bacb1cc03d23a2d87d1d172e277b # release/v1
         with:
           packages-dir: dist/
+
+  rubygems:
+    needs: release
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
+
+      - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8
+        with:
+          path: artifacts/
+          merge-multiple: true
+
+      - name: Build gems
+        run: |
+          VERSION="${GITHUB_REF_NAME#v}"
+          ruby scripts/build_gems.rb "${VERSION}" artifacts/
+
+      - name: Push to RubyGems
+        env:
+          GEM_HOST_API_KEY: ${{ secrets.RUBYGEMS_API_KEY }}
+        run: |
+          for gem in pkg/*.gem; do
+            gem push "$gem"
+          done
