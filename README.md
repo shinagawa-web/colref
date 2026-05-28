@@ -99,6 +99,13 @@ The following directories are never scanned:
 brew install shinagawa-web/tap/colref
 ```
 
+If you prefer to tap first:
+
+```sh
+brew tap shinagawa-web/tap
+brew install colref
+```
+
 ### One-line installer (Linux and macOS)
 
 ```sh
