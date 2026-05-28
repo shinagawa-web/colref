@@ -1,0 +1,53 @@
+name: verify-distribution
+
+on:
+  schedule:
+    - cron: '0 9 * * *'
+  workflow_dispatch:
+
+jobs:
+  go-install:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/setup-go@4a3601121dd01d1626a1e23e37211e3254c1c06c # v6
+        with:
+          go-version: stable
+          cache: false
+
+      - name: Install via go install
+        run: go install github.com/shinagawa-web/colref/cmd/colref@latest
+
+      - name: Verify version matches latest release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          expected=$(gh release view --repo shinagawa-web/colref --json tagName -q .tagName)
+          installed=$(go version -m "$(go env GOPATH)/bin/colref" | awk '$1 == "mod" { print $3 }')
+          echo "Expected : $expected"
+          echo "Installed: $installed"
+          if [ "$installed" != "$expected" ]; then
+            echo "ERROR: version mismatch"
+            exit 1
+          fi
+          echo "OK: $installed"
+
+  homebrew:
+    runs-on: macos-latest
+    steps:
+      - name: Install via Homebrew
+        run: brew install shinagawa-web/tap/colref
+
+      - name: Verify version matches latest release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          expected=$(gh release view --repo shinagawa-web/colref --json tagName -q .tagName)
+          expected_no_v="${expected#v}"
+          installed=$(brew list --versions colref | awk '{print $2}')
+          echo "Expected : $expected_no_v"
+          echo "Installed: $installed"
+          if [ "$installed" != "$expected_no_v" ]; then
+            echo "ERROR: version mismatch"
+            exit 1
+          fi
+          echo "OK: $installed"
