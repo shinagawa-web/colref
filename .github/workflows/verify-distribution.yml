@@ -61,7 +61,9 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Install via gem
-        run: gem install colref
+        run: |
+          gem install colref --user-install
+          echo "$(ruby -e 'puts Gem.user_dir')/bin" >> "$GITHUB_PATH"
 
       - name: Verify version matches latest release
         env:
