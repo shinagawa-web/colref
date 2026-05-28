@@ -93,6 +93,22 @@ The following directories are never scanned:
 
 ## Installation
 
+### pip / pipx (Python users)
+
+If you are working on a Django or Python project, the easiest way to install colref is via pip or pipx. No Go installation required.
+
+```sh
+pipx install colref
+```
+
+Or with pip:
+
+```sh
+pip install colref
+```
+
+Wheels are available for Linux (x86\_64, aarch64), macOS (x86\_64, arm64), and Windows (x86\_64).
+
 ### Homebrew (macOS and Linux)
 
 ```sh

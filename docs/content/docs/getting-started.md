@@ -7,9 +7,35 @@ weight: 10
 
 ## Installation
 
-Binaries for Linux and macOS are available on the [releases page](https://github.com/shinagawa-web/colref/releases).
+### pip / pipx (Python users)
 
-Download the archive for your platform, extract it, and place the `colref` binary somewhere on your `PATH`.
+If you are working on a Django or Python project, install via pipx or pip. No Go installation required.
+
+```sh
+pipx install colref
+```
+
+Or with pip:
+
+```sh
+pip install colref
+```
+
+### Homebrew (macOS and Linux)
+
+```sh
+brew install shinagawa-web/tap/colref
+```
+
+### One-line installer (Linux and macOS)
+
+```sh
+curl -fsSL https://raw.githubusercontent.com/shinagawa-web/colref/main/install.sh | sh
+```
+
+### Manual download
+
+Pre-built binaries are available on the [releases page](https://github.com/shinagawa-web/colref/releases).
 
 Verify the install:
 
