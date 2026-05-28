@@ -27,6 +27,11 @@ jobs:
           - os: macos-latest
             goos: darwin
             goarch: arm64
+          - os: ubuntu-latest
+            goos: windows
+            goarch: amd64
+            cc: x86_64-w64-mingw32-gcc
+            apt: gcc-mingw-w64-x86-64
 
     runs-on: ${{ matrix.os }}
 
@@ -52,9 +57,11 @@ jobs:
           CC: ${{ matrix.cc }}
         run: |
           VERSION="${GITHUB_REF_NAME#v}"
-          go build -ldflags "-X main.version=${GITHUB_REF_NAME}" -o colref ./cmd/colref/
+          EXT=""
+          [ "${{ matrix.goos }}" = "windows" ] && EXT=".exe"
+          go build -ldflags "-X main.version=${GITHUB_REF_NAME}" -o "colref${EXT}" ./cmd/colref/
           tar czf "colref_${VERSION}_${{ matrix.goos }}_${{ matrix.goarch }}.tar.gz" \
-            colref LICENSE README.md
+            "colref${EXT}" LICENSE README.md
 
       - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
         with:
@@ -146,6 +153,42 @@ jobs:
               --raw-field message="Bump colref to ${GITHUB_REF_NAME}" \
               --raw-field "content=${CONTENT}"
           fi
+
+  pypi:
+    needs: release
+    runs-on: ubuntu-latest
+    permissions:
+      id-token: write
+
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
+
+      - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8
+        with:
+          path: artifacts/
+          merge-multiple: true
+
+      - name: Verify linux/amd64 glibc requirement
+        run: |
+          VERSION="${GITHUB_REF_NAME#v}"
+          tar xzf "artifacts/colref_${VERSION}_linux_amd64.tar.gz" colref
+          MAX=$(objdump -T colref 2>/dev/null | grep -oP 'GLIBC_\K[0-9.]+' | sort -V | tail -1)
+          echo "Binary requires GLIBC_${MAX}"
+          python3 -c "
+          max_v = tuple(int(x) for x in '${MAX}'.split('.'))
+          limit = (2, 28)
+          if max_v > limit:
+              raise SystemExit(f'GLIBC_{\".\".join(str(x) for x in max_v)} exceeds manylinux_2_28 limit')
+          "
+
+      - name: Build wheels
+        run: |
+          VERSION="${GITHUB_REF_NAME#v}"
+          python3 scripts/build_wheels.py "${VERSION}" artifacts/
+
+      - uses: pypa/gh-action-pypi-publish@cef221092ed1bacb1cc03d23a2d87d1d172e277b # release/v1
+        with:
+          packages-dir: dist/
 
   go-install-check:
     needs: release
