@@ -7,7 +7,7 @@ weight: 10
 
 ## Installation
 
-| OS | amd64 | arm64 |
+| OS | x86_64 (Intel/AMD) | arm64 |
 |---|---|---|
 | macOS | ✓ | ✓ (Apple Silicon) |
 | Linux | ✓ | ✓ |

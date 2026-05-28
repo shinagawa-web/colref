@@ -16,7 +16,7 @@ colref scans your codebase with an AST parser, skips comments and string literal
 
 ## Installation
 
-| OS | amd64 | arm64 |
+| OS | x86_64 (Intel/AMD) | arm64 |
 |---|---|---|
 | macOS | ✓ | ✓ (Apple Silicon) |
 | Linux | ✓ | ✓ |
