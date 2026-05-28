@@ -16,6 +16,12 @@ colref scans your codebase with an AST parser, skips comments and string literal
 
 ## Installation
 
+| OS | amd64 | arm64 |
+|---|---|---|
+| macOS | ✓ | ✓ (Apple Silicon) |
+| Linux | ✓ | ✓ |
+| Windows | ✓ | — |
+
 ### Homebrew (macOS and Linux)
 
 ```sh

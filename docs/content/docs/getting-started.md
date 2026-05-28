@@ -7,6 +7,12 @@ weight: 10
 
 ## Installation
 
+| OS | amd64 | arm64 |
+|---|---|---|
+| macOS | ✓ | ✓ (Apple Silicon) |
+| Linux | ✓ | ✓ |
+| Windows | ✓ | — |
+
 ### Homebrew (macOS and Linux)
 
 ```sh
