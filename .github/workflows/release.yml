@@ -155,7 +155,7 @@ jobs:
           fi
 
   pypi:
-    needs: release
+    needs: build
     runs-on: ubuntu-latest
     permissions:
       id-token: write
@@ -181,10 +181,10 @@ jobs:
               print('No GLIBC symbols found — static binary or objdump mismatch; skipping check')
               sys.exit(0)
           max_v = tuple(int(x) for x in max_str.split('.'))
-          limit = (2, 28)
+          limit = (2, 34)
           if max_v > limit:
-              raise SystemExit(f'GLIBC_{max_str} exceeds manylinux_2_28 limit')
-          print(f'GLIBC_{max_str} <= manylinux_2_28 OK')
+              raise SystemExit(f'GLIBC_{max_str} exceeds manylinux_2_34 limit')
+          print(f'GLIBC_{max_str} <= manylinux_2_34 OK')
           "
 
       - name: Build wheels

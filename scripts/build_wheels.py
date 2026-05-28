@@ -11,8 +11,8 @@ from pathlib import Path
 
 # (goos, goarch) -> (wheel_platform_tag, bin_name)
 PLATFORMS = [
-    ("linux",   "amd64",  "manylinux_2_28_x86_64", "colref"),
-    ("linux",   "arm64",  "manylinux_2_28_aarch64", "colref"),
+    ("linux",   "amd64",  "manylinux_2_34_x86_64", "colref"),
+    ("linux",   "arm64",  "manylinux_2_34_aarch64", "colref"),
     ("darwin",  "amd64",  "macosx_10_9_x86_64",     "colref"),
     ("darwin",  "arm64",  "macosx_11_0_arm64",       "colref"),
     ("windows", "amd64",  "win_amd64",               "colref.exe"),
