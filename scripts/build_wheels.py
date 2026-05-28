@@ -2,6 +2,7 @@
 """Build platform-specific wheels that embed the colref binary."""
 
 import hashlib
+import re
 import sys
 import tarfile
 import zipfile
@@ -33,12 +34,26 @@ def main():
         os.chmod(binary, 0o755)
     except OSError:
         pass
-    sys.exit(subprocess.call([binary] + sys.argv[1:]))
+    if sys.platform == "win32":
+        sys.exit(subprocess.call([binary] + sys.argv[1:]))
+    else:
+        os.execvp(binary, [binary] + sys.argv[1:])
 
 
 if __name__ == "__main__":
     main()
 """
+
+
+def _normalize_version(version: str) -> str:
+    """Translate Go-style tag to PEP 440 (strip leading v, normalize pre-release)."""
+    version = re.sub(r"^v", "", version)
+    version = re.sub(r"-rc(\d+)$",    r"rc\1",     version)
+    version = re.sub(r"-beta(\d+)$",  r"b\1",      version)
+    version = re.sub(r"-alpha(\d+)$", r"a\1",      version)
+    version = re.sub(r"-post(\d+)$",  r".post\1",  version)
+    version = re.sub(r"-dev(\d+)$",   r".dev\1",   version)
+    return version
 
 
 def _record_hash(data: bytes) -> str:
@@ -51,6 +66,7 @@ def _build_wheel(
     platform_tag: str,
     bin_name: str,
     binary_data: bytes,
+    license_data: bytes,
     out_dir: Path,
 ) -> None:
     wheel_filename = f"colref-{version}-py3-none-{platform_tag}.whl"
@@ -85,12 +101,13 @@ def _build_wheel(
     entry_points = "[console_scripts]\ncolref = colref.__main__:main\n"
 
     files: list[tuple[str, bytes, bool]] = [
-        ("colref/__init__.py",               _INIT_PY.encode(),      False),
-        ("colref/__main__.py",               _MAIN_PY.encode(),      False),
-        (f"colref/_bin/{bin_name}",          binary_data,            True),
-        (f"{dist_info}/METADATA",            metadata.encode(),      False),
-        (f"{dist_info}/WHEEL",               wheel_meta.encode(),    False),
-        (f"{dist_info}/entry_points.txt",    entry_points.encode(),  False),
+        ("colref/__init__.py",                        _INIT_PY.encode(),      False),
+        ("colref/__main__.py",                        _MAIN_PY.encode(),      False),
+        (f"colref/_bin/{bin_name}",                   binary_data,            True),
+        (f"{dist_info}/licenses/LICENSE",             license_data,           False),
+        (f"{dist_info}/METADATA",                     metadata.encode(),      False),
+        (f"{dist_info}/WHEEL",                        wheel_meta.encode(),    False),
+        (f"{dist_info}/entry_points.txt",             entry_points.encode(),  False),
     ]
 
     records = [f"{path},{_record_hash(data)},{len(data)}" for path, data, _ in files]
@@ -112,21 +129,29 @@ def main() -> None:
     if len(sys.argv) != 3:
         sys.exit(f"Usage: {sys.argv[0]} <version> <artifacts_dir>")
 
-    version = sys.argv[1]
+    raw_version = sys.argv[1]
+    version = _normalize_version(raw_version)
     artifacts_dir = Path(sys.argv[2])
     out_dir = Path("dist")
     out_dir.mkdir(exist_ok=True)
 
+    license_path = Path(__file__).parent.parent / "LICENSE"
+    license_data = license_path.read_bytes()
+
     for goos, goarch, platform_tag, bin_name in PLATFORMS:
-        tarball = artifacts_dir / f"colref_{version}_{goos}_{goarch}.tar.gz"
+        tarball = artifacts_dir / f"colref_{raw_version}_{goos}_{goarch}.tar.gz"
         if not tarball.exists():
             print(f"  skip {goos}/{goarch}: {tarball.name} not found")
             continue
 
         with tarfile.open(tarball, "r:gz") as tf:
-            binary_data = tf.extractfile(tf.getmember(bin_name)).read()  # type: ignore[arg-type]
+            member = tf.getmember(bin_name)
+            f = tf.extractfile(member)
+            if f is None:
+                raise RuntimeError(f"{bin_name} is not a regular file in {tarball.name}")
+            binary_data = f.read()
 
-        _build_wheel(version, platform_tag, bin_name, binary_data, out_dir)
+        _build_wheel(version, platform_tag, bin_name, binary_data, license_data, out_dir)
 
 
 if __name__ == "__main__":

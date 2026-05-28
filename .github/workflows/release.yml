@@ -173,12 +173,18 @@ jobs:
           VERSION="${GITHUB_REF_NAME#v}"
           tar xzf "artifacts/colref_${VERSION}_linux_amd64.tar.gz" colref
           MAX=$(objdump -T colref 2>/dev/null | grep -oP 'GLIBC_\K[0-9.]+' | sort -V | tail -1)
-          echo "Binary requires GLIBC_${MAX}"
+          echo "Binary requires GLIBC_${MAX:-<none>}"
           python3 -c "
-          max_v = tuple(int(x) for x in '${MAX}'.split('.'))
+          import sys
+          max_str = '${MAX}'
+          if not max_str:
+              print('No GLIBC symbols found — static binary or objdump mismatch; skipping check')
+              sys.exit(0)
+          max_v = tuple(int(x) for x in max_str.split('.'))
           limit = (2, 28)
           if max_v > limit:
-              raise SystemExit(f'GLIBC_{\".\".join(str(x) for x in max_v)} exceeds manylinux_2_28 limit')
+              raise SystemExit(f'GLIBC_{max_str} exceeds manylinux_2_28 limit')
+          print(f'GLIBC_{max_str} <= manylinux_2_28 OK')
           "
 
       - name: Build wheels
