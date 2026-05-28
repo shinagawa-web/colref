@@ -38,11 +38,19 @@ RUBY
 
 ROOT = Pathname.new(__dir__).parent
 
+def normalize_version(raw_version)
+  raw_version
+    .sub(/-rc(\d+)$/,    '.rc.\1')
+    .sub(/-beta(\d+)$/,  '.beta.\1')
+    .sub(/-alpha(\d+)$/, '.alpha.\1')
+    .sub(/-pre(\d+)$/,   '.pre.\1')
+end
+
 def build_gem(raw_version, platform, artifacts_dir, out_dir)
   tarball = artifacts_dir / "colref_#{raw_version}_#{platform[:goos]}_#{platform[:goarch]}.tar.gz"
   unless tarball.exist?
-    puts "  skip #{platform[:goos]}/#{platform[:goarch]}: #{tarball.basename} not found"
-    return
+    warn "  ERROR: #{tarball.basename} not found"
+    return false
   end
 
   Dir.mktmpdir do |tmpdir|
@@ -68,7 +76,7 @@ def build_gem(raw_version, platform, artifacts_dir, out_dir)
 
     spec = Gem::Specification.new do |s|
       s.name                  = "colref"
-      s.version               = raw_version
+      s.version               = normalize_version(raw_version)
       s.platform              = platform[:gem_platform]
       s.summary               = "Check whether a database column is still referenced in your codebase before you delete it"
       s.description           = s.summary
@@ -94,6 +102,7 @@ def build_gem(raw_version, platform, artifacts_dir, out_dir)
     dest = out_dir / gem_file
     FileUtils.mv(gem_root / gem_file, dest)
     puts "  built #{dest.basename}"
+    true
   end
 end
 
@@ -101,4 +110,5 @@ raw_version = ARGV[0]&.sub(/^v/, "") or abort "Usage: #{$PROGRAM_NAME} <version>
 artifacts_dir = Pathname.new(ARGV[1] || abort("Usage: #{$PROGRAM_NAME} <version> <artifacts_dir>"))
 out_dir = Pathname.new("pkg").tap(&:mkpath)
 
-PLATFORMS.each { |p| build_gem(raw_version, p, artifacts_dir, out_dir) }
+failed = PLATFORMS.count { |p| build_gem(raw_version, p, artifacts_dir, out_dir) == false }
+abort "#{failed} platform(s) failed — aborting" if failed > 0
