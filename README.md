@@ -36,6 +36,14 @@ pip install colref
 | Linux | ✓ | ✓ |
 | Windows | ✓ | — |
 
+### gem (Ruby users)
+
+If you are working on a Rails or Ruby project, install via gem. No Go installation required.
+
+```sh
+gem install colref
+```
+
 ### Homebrew (macOS and Linux)
 
 ```sh
