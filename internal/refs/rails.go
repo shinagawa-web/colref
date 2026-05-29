@@ -28,6 +28,13 @@ var rubySymbolArgMethods = map[string]bool{
 	"minimum":       true, "maximum": true, "sum": true,
 }
 
+// rubySymbolFirstArgMethods are methods whose first positional symbol argument
+// is the field name. Matched with a [symbol] label.
+var rubySymbolFirstArgMethods = map[string]bool{
+	"read_attribute": true, "write_attribute": true,
+	"send": true, "public_send": true,
+}
+
 // rubyHashKeyArgMethods are ActiveRecord methods that accept field names as
 // hash keys. "not" is included but validated against a where receiver at call
 // time to avoid matching unrelated DSL methods.
@@ -168,6 +175,23 @@ func walkNodeRubyStringRefsInner(node *sitter.Node, src []byte, lines [][]byte, 
 		}
 		methodName := method.Content(src)
 
+		if rubySymbolFirstArgMethods[methodName] {
+			receiver := node.ChildByFieldName("receiver")
+			if receiver == nil {
+				break
+			}
+			for i := 0; i < int(args.ChildCount()); i++ {
+				child := args.Child(i)
+				if child.Type() == "simple_symbol" {
+					if rubySymbolName(child, src) == fieldName {
+						addRubySymbolRef(child, lines, file, refs)
+					}
+					break
+				}
+			}
+			break
+		}
+
 		if rubySqlMethods[methodName] {
 			for i := 0; i < int(args.ChildCount()); i++ {
 				child := args.Child(i)
@@ -230,6 +254,7 @@ func walkNodeRubyStringRefsInner(node *sitter.Node, src []byte, lines [][]byte, 
 
 	case "element_reference":
 		// Article.arel_table[:field] or arel_table[:field] (implicit self)
+		// Also: article[:field] — symbol subscript attribute access.
 		if node.ChildCount() >= 3 {
 			receiver := node.Child(0)
 			if receiver != nil {
@@ -237,11 +262,13 @@ func walkNodeRubyStringRefsInner(node *sitter.Node, src []byte, lines [][]byte, 
 					receiver.ChildByFieldName("method") != nil &&
 					receiver.ChildByFieldName("method").Content(src) == "arel_table") ||
 					(receiver.Type() == "identifier" && receiver.Content(src) == "arel_table")
-				if isArelTable {
-					for i := 1; i < int(node.ChildCount()); i++ {
-						sym := node.Child(i)
-						if sym.Type() == "simple_symbol" && rubySymbolName(sym, src) == fieldName {
+				for i := 1; i < int(node.ChildCount()); i++ {
+					sym := node.Child(i)
+					if sym.Type() == "simple_symbol" && rubySymbolName(sym, src) == fieldName {
+						if isArelTable {
 							addRubyStringRef(node, lines, file, refs)
+						} else {
+							addRubySymbolRef(node, lines, file, refs)
 						}
 					}
 				}
@@ -325,6 +352,16 @@ func addRubyStringRef(node *sitter.Node, lines [][]byte, file string, refs *[]Re
 		File: file,
 		Line: row + 1,
 		Text: "[string] " + strings.TrimSpace(lineAt(lines, row)),
+	})
+}
+
+// addRubySymbolRef appends a [symbol]-labeled Reference at the node's source row.
+func addRubySymbolRef(node *sitter.Node, lines [][]byte, file string, refs *[]Reference) {
+	row := int(node.StartPoint().Row)
+	*refs = append(*refs, Reference{
+		File: file,
+		Line: row + 1,
+		Text: "[symbol] " + strings.TrimSpace(lineAt(lines, row)),
 	})
 }
 
