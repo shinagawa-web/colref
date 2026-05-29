@@ -5,7 +5,7 @@ weight: 40
 
 # Detection patterns
 
-colref uses static AST analysis. It can only detect patterns where the field name appears as a literal in the source. References where the field name is constructed at runtime (e.g. `getattr(obj, field_name)`) are out of scope by design — static analysis cannot determine what string `field_name` holds.
+colref uses static AST analysis. It can only detect patterns where the field name appears as a literal in the source. References where the field name is constructed at runtime (e.g. `getattr(obj, field_name)`) are out of scope by design — static analysis cannot determine what string `field_name` holds at runtime.
 
 This page documents exactly which patterns are and are not detected for each ORM. The ground truth is the golden test files in `test_patterns/`.
 
@@ -17,6 +17,7 @@ All three mean the reference was detected. The label indicates how it was found 
 |--------|-----------|------------|
 | ✅ | AST attribute node (`article.title`) | Highest — unambiguous |
 | ✅ `[string]` | Literal string or symbol passed to a known ORM method (`.where(title: value)`, `.pluck(:title)`) | High — method is known to accept field names |
+| ✅ `[getattr]` | Literal string in `getattr(obj, "field")` or `attrgetter("field")` | Lower — built-in, not model-specific; verify manually |
 | ✅ `[sql ref]` | Word-boundary substring match inside a raw SQL string (`.where("title = ?", value)`) | Lower — verify manually, false positives possible |
 
 ## Django {#django}
@@ -38,6 +39,21 @@ All three mean the reference was detected. The label indicates how it was found 
 | Augmented write | `article.title += " suffix"` | ✅ |
 
 colref makes no read/write distinction — both are matched as attribute nodes.
+
+</details>
+
+<details>
+<summary>getattr / attrgetter</summary>
+
+The field name appears as a string literal. The `[getattr]` label signals lower confidence because `getattr` and `attrgetter` are general Python built-ins, not model-specific calls — any object with a matching attribute name will be reported.
+
+| Pattern | Example | Result |
+|---------|---------|--------|
+| `getattr` literal | `getattr(article, "title")` | ✅ `[getattr]` |
+| `getattr` with default | `getattr(article, "title", "")` | ✅ `[getattr]` |
+| `attrgetter` | `attrgetter("title")(article)` | ✅ `[getattr]` |
+| `operator.attrgetter` | `operator.attrgetter("title")` | ✅ `[getattr]` |
+| `getattr` with variable | `getattr(article, field_name)` | ❌ out of scope — field name not statically visible |
 
 </details>
 
@@ -105,18 +121,6 @@ The field name appears as the first positional string argument.
 </details>
 
 ### Not detected
-
-<details>
-<summary>getattr / attrgetter</summary>
-
-| Pattern | Example | Result |
-|---------|---------|--------|
-| `getattr` with literal | `getattr(article, "title")` | ❌ |
-| `getattr` with default | `getattr(article, "title", "")` | ❌ |
-| `attrgetter` | `attrgetter("title")(article)` | ❌ |
-| `getattr` with variable | `getattr(article, field_name)` | ❌ out of scope by design |
-
-</details>
 
 <details>
 <summary>ORM — uncovered methods</summary>

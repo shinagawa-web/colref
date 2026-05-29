@@ -11,9 +11,9 @@ colref uses static AST analysis and cannot detect every reference pattern. Refer
 
 ## Django
 
-Detected: attribute access, most ORM methods (`filter`, `exclude`, `get`, `Q`, `values`, `only`, `defer`, `order_by`, `F`, aggregates, etc.), and raw SQL strings.
+Detected: attribute access, `getattr(obj, "field")` / `attrgetter("field")` (labeled `[getattr]`), most ORM methods (`filter`, `exclude`, `get`, `Q`, `values`, `only`, `defer`, `order_by`, `F`, aggregates, etc.), and raw SQL strings.
 
-Not detected: `getattr` / `attrgetter`, `update_or_create`, `save(update_fields=[...])`, `_meta.get_field`, Django admin class attributes, DRF serializer fields, and form fields.
+Not detected: `getattr` with variable field name, `update_or_create`, `save(update_fields=[...])`, `_meta.get_field`, Django admin class attributes, DRF serializer fields, and form fields.
 
 ## Rails
 
