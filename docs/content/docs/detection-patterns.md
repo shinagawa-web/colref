@@ -338,8 +338,14 @@ The `scope` declaration itself is not matched, but calls inside the scope body a
 
 | Pattern | Example | Result |
 |---------|---------|--------|
+| `slice` | `article.slice(:title, :slug)` | ✅ `[string]` |
+| `as_json(only:)` | `article.as_json(only: [:title])` | ✅ `[string]` |
+| `as_json(except:)` | `article.as_json(except: [:created_at])` | ✅ `[string]` |
+| `to_json(only:)` | `article.to_json(only: [:title])` | ✅ `[string]` |
+| `to_xml(only:)` | `article.to_xml(only: [:title])` | ✅ `[string]` |
 | Strong params `permit` | `params.require(:article).permit(:title, :slug)` | ❌ |
 | ActiveModel Serializer `attributes` | `attributes :title, :slug` | ❌ |
+| `as_json(only:)` with dynamic array | `article.as_json(only: fields)` | ❌ |
 
 </details>
 
