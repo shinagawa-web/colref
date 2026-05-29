@@ -182,12 +182,15 @@ func walkNodeRubyStringRefsInner(node *sitter.Node, src []byte, lines [][]byte, 
 			}
 			for i := 0; i < int(args.ChildCount()); i++ {
 				child := args.Child(i)
-				if child.Type() == "simple_symbol" {
-					if rubySymbolName(child, src) == fieldName {
-						addRubySymbolRef(child, lines, file, refs)
-					}
-					break
+				t := child.Type()
+				if t == "(" || t == ")" || t == "," {
+					continue
 				}
+				// Only match when the first positional argument is a symbol literal.
+				if t == "simple_symbol" && rubySymbolName(child, src) == fieldName {
+					addRubySymbolRef(child, lines, file, refs)
+				}
+				break
 			}
 			break
 		}

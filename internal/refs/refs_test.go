@@ -2849,3 +2849,16 @@ func TestScanRubyStringRefs_Send_NoReceiver_NotDetected(t *testing.T) {
 		t.Errorf("want 0 refs for receiverless send, got %d: %v", len(refs), refs)
 	}
 }
+
+func TestScanRubyStringRefs_Send_SymbolNotFirst_NotDetected(t *testing.T) {
+	dir := t.TempDir()
+	writeFile(t, dir, "app.rb", `article.send("other", :title)`)
+
+	refs, _, err := ScanRubyStringRefs(dir, "title")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(refs) != 0 {
+		t.Errorf("want 0 refs when symbol is not first arg, got %d: %v", len(refs), refs)
+	}
+}

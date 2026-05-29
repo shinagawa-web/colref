@@ -17,7 +17,7 @@ All three mean the reference was detected. The label indicates how it was found 
 |--------|-----------|------------|
 | ✅ | AST attribute node (`article.title`) | Highest — unambiguous |
 | ✅ `[string]` | Literal string or symbol passed to a known ORM method (`.where(title: value)`, `.pluck(:title)`) | High — method is known to accept field names |
-| ✅ `[symbol]` | Symbol literal in general Ruby accessor (`article[:title]`, `send(:title)`) | Medium — not Rails-specific; verify manually |
+| ✅ `[symbol]` | Symbol literal in general Ruby accessor (`article[:title]`, `article.send(:title)`) | Medium — not Rails-specific; verify manually |
 | ✅ `[getattr]` | Literal string in `getattr(obj, "field")` or `attrgetter("field")` | Lower — built-in, not model-specific; verify manually |
 | ✅ `[sql ref]` | Word-boundary substring match inside a raw SQL string (`.where("title = ?", value)`) | Lower — verify manually, false positives possible |
 
