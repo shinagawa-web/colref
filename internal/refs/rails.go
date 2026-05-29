@@ -214,13 +214,12 @@ func walkNodeRubyStringRefsInner(node *sitter.Node, src []byte, lines [][]byte, 
 		if rubyBulkWriteMethods[methodName] {
 			for i := 0; i < int(args.ChildCount()); i++ {
 				child := args.Child(i)
-				t := child.Type()
-				if t == "(" || t == ")" || t == "," {
+				switch child.Type() {
+				case "(", ")", ",":
 					continue
-				}
-				if t == "hash" {
+				case "hash":
 					scanRubyHashPairs(child, src, lines, fieldName, file, refs)
-				} else if t == "array" {
+				case "array":
 					for j := 0; j < int(child.ChildCount()); j++ {
 						if elem := child.Child(j); elem.Type() == "hash" {
 							scanRubyHashPairs(elem, src, lines, fieldName, file, refs)
