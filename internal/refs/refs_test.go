@@ -2611,6 +2611,91 @@ func TestScanRubyStringRefs_Sum(t *testing.T) {
 	}
 }
 
+func TestScanRubyStringRefs_Average(t *testing.T) {
+	dir := t.TempDir()
+	writeFile(t, dir, "app.rb", `Article.average(:price)`)
+	refs, _, err := ScanRubyStringRefs(dir, "price")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(refs) != 1 || refs[0].Text != "[string] Article.average(:price)" {
+		t.Errorf("unexpected refs: %v", refs)
+	}
+}
+
+func TestScanRubyStringRefs_Count_ColumnForm(t *testing.T) {
+	dir := t.TempDir()
+	writeFile(t, dir, "app.rb", `Article.count(:status)`)
+	refs, _, err := ScanRubyStringRefs(dir, "status")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(refs) != 1 || refs[0].Text != "[string] Article.count(:status)" {
+		t.Errorf("unexpected refs: %v", refs)
+	}
+}
+
+func TestScanRubyStringRefs_Count_NoArg_NotDetected(t *testing.T) {
+	dir := t.TempDir()
+	writeFile(t, dir, "app.rb", `Article.count`)
+	refs, _, err := ScanRubyStringRefs(dir, "count")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(refs) != 0 {
+		t.Errorf("count with no args should not produce refs, got: %v", refs)
+	}
+}
+
+func TestScanRubyStringRefs_Calculate_Symbol(t *testing.T) {
+	dir := t.TempDir()
+	writeFile(t, dir, "app.rb", `Article.calculate(:sum, :price)`)
+	refs, _, err := ScanRubyStringRefs(dir, "price")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(refs) != 1 || refs[0].Text != "[string] Article.calculate(:sum, :price)" {
+		t.Errorf("unexpected refs: %v", refs)
+	}
+}
+
+func TestScanRubyStringRefs_Calculate_String(t *testing.T) {
+	dir := t.TempDir()
+	writeFile(t, dir, "app.rb", `Article.calculate(:sum, "price")`)
+	refs, _, err := ScanRubyStringRefs(dir, "price")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(refs) != 1 || refs[0].Text != `[string] Article.calculate(:sum, "price")` {
+		t.Errorf("unexpected refs: %v", refs)
+	}
+}
+
+func TestScanRubyStringRefs_Calculate_WrongField_NotDetected(t *testing.T) {
+	dir := t.TempDir()
+	writeFile(t, dir, "app.rb", `Article.calculate(:sum, :amount)`)
+	refs, _, err := ScanRubyStringRefs(dir, "price")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(refs) != 0 {
+		t.Errorf("wrong field should not produce refs, got: %v", refs)
+	}
+}
+
+func TestScanRubyStringRefs_Calculate_OperationNotField(t *testing.T) {
+	// :sum is the operation (first arg), not the field — must not be detected as "sum" field.
+	dir := t.TempDir()
+	writeFile(t, dir, "app.rb", `Article.calculate(:sum, :price)`)
+	refs, _, err := ScanRubyStringRefs(dir, "sum")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(refs) != 0 {
+		t.Errorf("operation symbol should not be detected as field ref, got: %v", refs)
+	}
+}
+
 // ── Rails raw SQL reference tests ────────────────────────────────────────────
 
 func TestScanRubyStringRefs_FindBySql_StringArg(t *testing.T) {

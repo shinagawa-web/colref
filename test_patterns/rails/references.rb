@@ -59,6 +59,10 @@ if false
   Article.minimum(:title)                               # minimum
   Article.maximum(:title)                               # maximum
   Article.sum(:title)                                   # sum
+  Article.average(:title)                               # average
+  Article.count(:title)                                 # count (column form)
+  Article.calculate(:sum, :title)                       # calculate symbol
+  Article.calculate(:sum, "title")                      # calculate string
 
   # ── Arel ──────────────────────────────────────────────────────────────────────
   t = Article.arel_table[:title]                        # table subscript

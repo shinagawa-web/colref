@@ -26,6 +26,7 @@ var rubySymbolArgMethods = map[string]bool{
 	"pick": true, "group": true, "reorder": true,
 	"update_column": true,
 	"minimum":       true, "maximum": true, "sum": true,
+	"average": true, "count": true,
 }
 
 // rubySymbolFirstArgMethods are methods whose first positional symbol argument
@@ -204,6 +205,26 @@ func walkNodeRubyStringRefsInner(node *sitter.Node, src []byte, lines [][]byte, 
 						addRubySqlRef(child, lines, file, refs)
 					}
 					break
+				}
+			}
+			break
+		}
+
+		if methodName == "calculate" {
+			// calculate(:operation, :column) — second positional symbol/string arg is the field.
+			pos := 0
+			for i := 0; i < int(args.ChildCount()); i++ {
+				child := args.Child(i)
+				if child.Type() == "simple_symbol" || child.Type() == "string" {
+					if pos == 1 {
+						if child.Type() == "simple_symbol" && rubySymbolName(child, src) == fieldName {
+							addRubyStringRef(child, lines, file, refs)
+						} else if child.Type() == "string" && rubyStringContent(child, src) == fieldName {
+							addRubyStringRef(child, lines, file, refs)
+						}
+						break
+					}
+					pos++
 				}
 			}
 			break

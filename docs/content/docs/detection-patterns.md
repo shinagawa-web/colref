@@ -265,6 +265,9 @@ The field name appears as a string element inside the `update_fields` list passe
 | `minimum` | `.minimum(:title)` | ✅ `[string]` |
 | `maximum` | `.maximum(:title)` | ✅ `[string]` |
 | `sum` | `.sum(:title)` | ✅ `[string]` |
+| `average` | `.average(:price)` | ✅ `[string]` |
+| `count` (column form) | `.count(:status)` | ✅ `[string]` |
+| `calculate` | `.calculate(:sum, :price)` | ✅ `[string]` (second arg) |
 
 </details>
 
