@@ -1748,6 +1748,110 @@ func TestScanStringRefs_SQLParseError(t *testing.T) {
 	}
 }
 
+// --- save(update_fields=[...]) tests ---
+
+func TestScanStringRefs_SaveUpdateFields_Single(t *testing.T) {
+	dir := t.TempDir()
+	writeFile(t, dir, "views.py", `article.save(update_fields=['title'])`)
+
+	refs, _, err := ScanStringRefs(dir, "title")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(refs) != 1 {
+		t.Fatalf("want 1 ref, got %d: %v", len(refs), refs)
+	}
+	if !strings.HasPrefix(refs[0].Text, "[string] ") {
+		t.Errorf("want [string] prefix, got %q", refs[0].Text)
+	}
+}
+
+func TestScanStringRefs_SaveUpdateFields_Multiple(t *testing.T) {
+	dir := t.TempDir()
+	writeFile(t, dir, "views.py", `article.save(update_fields=['title', 'slug'])`)
+
+	refs, _, err := ScanStringRefs(dir, "title")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(refs) != 1 {
+		t.Fatalf("want 1 ref for 'title', got %d: %v", len(refs), refs)
+	}
+
+	refs2, _, err := ScanStringRefs(dir, "slug")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(refs2) != 1 {
+		t.Fatalf("want 1 ref for 'slug', got %d: %v", len(refs2), refs2)
+	}
+}
+
+func TestScanStringRefs_SaveNoUpdateFields_NotDetected(t *testing.T) {
+	dir := t.TempDir()
+	writeFile(t, dir, "views.py", `article.save()`)
+
+	refs, _, err := ScanStringRefs(dir, "title")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(refs) != 0 {
+		t.Errorf("want 0 refs for save() without update_fields, got %d: %v", len(refs), refs)
+	}
+}
+
+func TestScanStringRefs_SaveUpdateFields_WrongField_NotDetected(t *testing.T) {
+	dir := t.TempDir()
+	writeFile(t, dir, "views.py", `article.save(update_fields=['slug'])`)
+
+	refs, _, err := ScanStringRefs(dir, "title")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(refs) != 0 {
+		t.Errorf("want 0 refs for wrong field, got %d: %v", len(refs), refs)
+	}
+}
+
+func TestScanStringRefs_SaveOtherKwarg_NotDetected(t *testing.T) {
+	dir := t.TempDir()
+	writeFile(t, dir, "views.py", `article.save(force_insert=True)`)
+
+	refs, _, err := ScanStringRefs(dir, "title")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(refs) != 0 {
+		t.Errorf("want 0 refs for non-update_fields kwarg, got %d: %v", len(refs), refs)
+	}
+}
+
+func TestScanStringRefs_SaveUpdateFields_NonListValue_NotDetected(t *testing.T) {
+	dir := t.TempDir()
+	writeFile(t, dir, "views.py", `article.save(update_fields=my_list)`)
+
+	refs, _, err := ScanStringRefs(dir, "title")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(refs) != 0 {
+		t.Errorf("want 0 refs for non-list update_fields value, got %d: %v", len(refs), refs)
+	}
+}
+
+func TestScanStringRefs_SaveUpdateFields_StandaloneFunction_NotDetected(t *testing.T) {
+	dir := t.TempDir()
+	writeFile(t, dir, "views.py", `save(update_fields=['title'])`)
+
+	refs, _, err := ScanStringRefs(dir, "title")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(refs) != 0 {
+		t.Errorf("want 0 refs for standalone save() function, got %d: %v", len(refs), refs)
+	}
+}
+
 // BenchmarkScan uses 1,000 Python files (200 apps × 5 files, ~100 lines each) with
 // per-app generated names — comparable to BookWyrm scale (~433 files, ~52k lines)
 // in line density while exceeding it in file count.
