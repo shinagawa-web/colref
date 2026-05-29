@@ -462,7 +462,8 @@ func TestScan_QObject_NotDetected(t *testing.T) {
 
 func TestScan_GetAttr_NotDetected(t *testing.T) {
 	dir := t.TempDir()
-	// v0.1 limitation: getattr() takes the field name as a string.
+	// Attribute-access scan does not cover call nodes; getattr() is detected
+	// by ScanStringRefs instead (with a [getattr] label).
 	writeFile(t, dir, "views.py", `v = getattr(user, "email")`)
 
 	refs, _, err := Scan(dir, "email")
@@ -470,7 +471,7 @@ func TestScan_GetAttr_NotDetected(t *testing.T) {
 		t.Fatal(err)
 	}
 	if len(refs) != 0 {
-		t.Errorf("getattr() should not be detected in v0.1, got %d: %v", len(refs), refs)
+		t.Errorf("Scan() should not detect getattr(), got %d: %v", len(refs), refs)
 	}
 }
 
@@ -657,17 +658,87 @@ func TestScanStringRefs_FExpression(t *testing.T) {
 	}
 }
 
-func TestScanStringRefs_GetAttrNotDetected(t *testing.T) {
+func TestScanStringRefs_GetAttr_TwoArgs(t *testing.T) {
 	dir := t.TempDir()
-	// getattr() is not a Django ORM method — should not be detected.
 	writeFile(t, dir, "views.py", `v = getattr(user, "email")`)
 
 	refs, _, err := ScanStringRefs(dir, "email")
 	if err != nil {
 		t.Fatal(err)
 	}
+	if len(refs) != 1 {
+		t.Fatalf("want 1 ref for getattr(), got %d: %v", len(refs), refs)
+	}
+	if !strings.HasPrefix(refs[0].Text, "[getattr] ") {
+		t.Errorf("want [getattr] prefix, got %q", refs[0].Text)
+	}
+}
+
+func TestScanStringRefs_GetAttr_ThreeArgs(t *testing.T) {
+	dir := t.TempDir()
+	writeFile(t, dir, "views.py", `v = getattr(user, "email", "")`)
+
+	refs, _, err := ScanStringRefs(dir, "email")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(refs) != 1 {
+		t.Fatalf("want 1 ref for getattr() with default, got %d: %v", len(refs), refs)
+	}
+}
+
+func TestScanStringRefs_GetAttr_VariableArg_NotDetected(t *testing.T) {
+	dir := t.TempDir()
+	writeFile(t, dir, "views.py", `v = getattr(user, field_name)`)
+
+	refs, _, err := ScanStringRefs(dir, "email")
+	if err != nil {
+		t.Fatal(err)
+	}
 	if len(refs) != 0 {
-		t.Errorf("getattr() should not be detected by ScanStringRefs, got %d: %v", len(refs), refs)
+		t.Errorf("getattr() with variable arg should not be detected, got %d: %v", len(refs), refs)
+	}
+}
+
+func TestScanStringRefs_GetAttr_WrongField_NotDetected(t *testing.T) {
+	dir := t.TempDir()
+	writeFile(t, dir, "views.py", `v = getattr(user, "name")`)
+
+	refs, _, err := ScanStringRefs(dir, "email")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(refs) != 0 {
+		t.Errorf("getattr() for different field should not match, got %d: %v", len(refs), refs)
+	}
+}
+
+func TestScanStringRefs_AttrGetter(t *testing.T) {
+	dir := t.TempDir()
+	writeFile(t, dir, "views.py", `f = attrgetter("email"); result = f(user)`)
+
+	refs, _, err := ScanStringRefs(dir, "email")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(refs) != 1 {
+		t.Fatalf("want 1 ref for attrgetter(), got %d: %v", len(refs), refs)
+	}
+	if !strings.HasPrefix(refs[0].Text, "[getattr] ") {
+		t.Errorf("want [getattr] prefix, got %q", refs[0].Text)
+	}
+}
+
+func TestScanStringRefs_AttrGetter_QualifiedImport(t *testing.T) {
+	dir := t.TempDir()
+	writeFile(t, dir, "views.py", `import operator; f = operator.attrgetter("email")`)
+
+	refs, _, err := ScanStringRefs(dir, "email")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(refs) != 1 {
+		t.Fatalf("want 1 ref for operator.attrgetter(), got %d: %v", len(refs), refs)
 	}
 }
 
