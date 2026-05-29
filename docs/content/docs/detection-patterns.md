@@ -111,6 +111,19 @@ The field name appears as the first positional string argument.
 </details>
 
 <details>
+<summary>save with update_fields</summary>
+
+The field name appears as a string element inside the `update_fields` list passed to `Model.save()`.
+
+| Pattern | Example | Result |
+|---------|---------|--------|
+| Single field | `article.save(update_fields=["title"])` | ✅ `[string]` |
+| Multiple fields | `article.save(update_fields=["title", "slug"])` | ✅ `[string]` |
+| Variable list | `article.save(update_fields=fields)` | ❌ out of scope — list not statically visible |
+
+</details>
+
+<details>
 <summary>Raw SQL</summary>
 
 | Method | Example | Result |
@@ -128,7 +141,6 @@ The field name appears as the first positional string argument.
 | Pattern | Example | Result |
 |---------|---------|--------|
 | `update_or_create` | `.update_or_create(defaults={"title": "x"})` | ❌ |
-| `save` with `update_fields` | `article.save(update_fields=["title"])` | ❌ |
 
 </details>
 

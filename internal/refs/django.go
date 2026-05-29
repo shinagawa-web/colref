@@ -197,7 +197,7 @@ func walkNodeStringRefs(node *sitter.Node, src []byte, lines [][]byte, fieldName
 							break
 						}
 					}
-				case methodName == "save":
+				case methodName == "save" && fn.Type() == "attribute":
 					// article.save(update_fields=['title', 'slug'])
 					for i := 0; i < int(args.ChildCount()); i++ {
 						child := args.Child(i)

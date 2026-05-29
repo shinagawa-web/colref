@@ -1839,6 +1839,19 @@ func TestScanStringRefs_SaveUpdateFields_NonListValue_NotDetected(t *testing.T) 
 	}
 }
 
+func TestScanStringRefs_SaveUpdateFields_StandaloneFunction_NotDetected(t *testing.T) {
+	dir := t.TempDir()
+	writeFile(t, dir, "views.py", `save(update_fields=['title'])`)
+
+	refs, _, err := ScanStringRefs(dir, "title")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(refs) != 0 {
+		t.Errorf("want 0 refs for standalone save() function, got %d: %v", len(refs), refs)
+	}
+}
+
 // BenchmarkScan uses 1,000 Python files (200 apps × 5 files, ~100 lines each) with
 // per-app generated names — comparable to BookWyrm scale (~433 files, ~52k lines)
 // in line density while exceeding it in file count.
