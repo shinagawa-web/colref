@@ -9,6 +9,11 @@ References found for Article.title
   references.rb:15          article.title
   references.rb:16          article&.title
   references.rb:19          article.title
+  references.rb:22          [symbol] x = article[:title]                                   # symbol subscript
+  references.rb:23          [symbol] x = article.read_attribute(:title)                    # read_attribute
+  references.rb:24          [symbol] article.write_attribute(:title, value)                # write_attribute
+  references.rb:25          [symbol] x = article.send(:title)                              # send with symbol
+  references.rb:26          [symbol] x = article.public_send(:title)                       # public_send
   references.rb:29          [string] a = Article.new(title: value)                         # new
   references.rb:30          [string] a = Article.create(title: value)                      # create
   references.rb:31          [string] a = Article.find_or_create_by(title: value)           # find_or_create_by

@@ -17,6 +17,7 @@ All three mean the reference was detected. The label indicates how it was found 
 |--------|-----------|------------|
 | ✅ | AST attribute node (`article.title`) | Highest — unambiguous |
 | ✅ `[string]` | Literal string or symbol passed to a known ORM method (`.where(title: value)`, `.pluck(:title)`) | High — method is known to accept field names |
+| ✅ `[symbol]` | Symbol literal in general Ruby accessor (`article[:title]`, `article.send(:title)`) | Medium — not Rails-specific; verify manually |
 | ✅ `[getattr]` | Literal string in `getattr(obj, "field")` or `attrgetter("field")` | Lower — built-in, not model-specific; verify manually |
 | ✅ `[sql ref]` | Word-boundary substring match inside a raw SQL string (`.where("title = ?", value)`) | Lower — verify manually, false positives possible |
 
@@ -291,6 +292,22 @@ The field name appears as a string element inside the `update_fields` list passe
 </details>
 
 <details>
+<summary>Hash / symbol access</summary>
+
+The field name appears as a symbol literal. These are general Ruby patterns — not Rails-specific — so the `[symbol]` label signals lower confidence than `[string]` hits from known ORM methods. Variable symbols (`article.send(field_var)`) remain out of scope. `send` and `public_send` require a receiver.
+
+| Pattern | Example | Result |
+|---------|---------|--------|
+| Symbol subscript | `article[:title]` | ✅ `[symbol]` |
+| `read_attribute` | `article.read_attribute(:title)` | ✅ `[symbol]` |
+| `write_attribute` | `article.write_attribute(:title, value)` | ✅ `[symbol]` |
+| `send` | `article.send(:title)` | ✅ `[symbol]` |
+| `public_send` | `article.public_send(:title)` | ✅ `[symbol]` |
+| Variable symbol | `article.send(field_var)` | ❌ out of scope — symbol not statically visible |
+
+</details>
+
+<details>
 <summary>Model declarations (partial)</summary>
 
 The `scope` declaration itself is not matched, but calls inside the scope body are scanned normally.
@@ -302,19 +319,6 @@ The `scope` declaration itself is not matched, but calls inside the scope body a
 </details>
 
 ### Not detected
-
-<details>
-<summary>Hash / symbol access</summary>
-
-| Pattern | Example | Result |
-|---------|---------|--------|
-| Symbol subscript | `article[:title]` | ❌ |
-| `read_attribute` | `article.read_attribute(:title)` | ❌ |
-| `write_attribute` | `article.write_attribute(:title, value)` | ❌ |
-| `send` | `article.send(:title)` | ❌ |
-| `public_send` | `article.public_send(:title)` | ❌ |
-
-</details>
 
 <details>
 <summary>Model declarations</summary>

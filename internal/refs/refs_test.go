@@ -2728,3 +2728,137 @@ func TestScanRubyStringRefs_Heredoc_Execute(t *testing.T) {
 		t.Fatalf("want 1 ref, got %d: %v", len(refs), refs)
 	}
 }
+
+// --- symbol access tests ---
+
+func TestScanRubyStringRefs_SymbolSubscript(t *testing.T) {
+	dir := t.TempDir()
+	writeFile(t, dir, "app.rb", `x = article[:title]`)
+
+	refs, _, err := ScanRubyStringRefs(dir, "title")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(refs) != 1 {
+		t.Fatalf("want 1 ref, got %d: %v", len(refs), refs)
+	}
+	if !strings.HasPrefix(refs[0].Text, "[symbol] ") {
+		t.Errorf("want [symbol] prefix, got %q", refs[0].Text)
+	}
+}
+
+func TestScanRubyStringRefs_SymbolSubscript_WrongField_NotDetected(t *testing.T) {
+	dir := t.TempDir()
+	writeFile(t, dir, "app.rb", `x = article[:slug]`)
+
+	refs, _, err := ScanRubyStringRefs(dir, "title")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(refs) != 0 {
+		t.Errorf("want 0 refs, got %d: %v", len(refs), refs)
+	}
+}
+
+func TestScanRubyStringRefs_ReadAttribute(t *testing.T) {
+	dir := t.TempDir()
+	writeFile(t, dir, "app.rb", `x = article.read_attribute(:title)`)
+
+	refs, _, err := ScanRubyStringRefs(dir, "title")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(refs) != 1 {
+		t.Fatalf("want 1 ref, got %d: %v", len(refs), refs)
+	}
+	if !strings.HasPrefix(refs[0].Text, "[symbol] ") {
+		t.Errorf("want [symbol] prefix, got %q", refs[0].Text)
+	}
+}
+
+func TestScanRubyStringRefs_WriteAttribute(t *testing.T) {
+	dir := t.TempDir()
+	writeFile(t, dir, "app.rb", `article.write_attribute(:title, "new")`)
+
+	refs, _, err := ScanRubyStringRefs(dir, "title")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(refs) != 1 {
+		t.Fatalf("want 1 ref, got %d: %v", len(refs), refs)
+	}
+	if !strings.HasPrefix(refs[0].Text, "[symbol] ") {
+		t.Errorf("want [symbol] prefix, got %q", refs[0].Text)
+	}
+}
+
+func TestScanRubyStringRefs_Send(t *testing.T) {
+	dir := t.TempDir()
+	writeFile(t, dir, "app.rb", `x = article.send(:title)`)
+
+	refs, _, err := ScanRubyStringRefs(dir, "title")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(refs) != 1 {
+		t.Fatalf("want 1 ref, got %d: %v", len(refs), refs)
+	}
+	if !strings.HasPrefix(refs[0].Text, "[symbol] ") {
+		t.Errorf("want [symbol] prefix, got %q", refs[0].Text)
+	}
+}
+
+func TestScanRubyStringRefs_PublicSend(t *testing.T) {
+	dir := t.TempDir()
+	writeFile(t, dir, "app.rb", `x = article.public_send(:title)`)
+
+	refs, _, err := ScanRubyStringRefs(dir, "title")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(refs) != 1 {
+		t.Fatalf("want 1 ref, got %d: %v", len(refs), refs)
+	}
+	if !strings.HasPrefix(refs[0].Text, "[symbol] ") {
+		t.Errorf("want [symbol] prefix, got %q", refs[0].Text)
+	}
+}
+
+func TestScanRubyStringRefs_Send_VariableArg_NotDetected(t *testing.T) {
+	dir := t.TempDir()
+	writeFile(t, dir, "app.rb", `x = article.send(field_name)`)
+
+	refs, _, err := ScanRubyStringRefs(dir, "title")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(refs) != 0 {
+		t.Errorf("want 0 refs for variable arg, got %d: %v", len(refs), refs)
+	}
+}
+
+func TestScanRubyStringRefs_Send_NoReceiver_NotDetected(t *testing.T) {
+	dir := t.TempDir()
+	writeFile(t, dir, "app.rb", `x = send(:title)`)
+
+	refs, _, err := ScanRubyStringRefs(dir, "title")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(refs) != 0 {
+		t.Errorf("want 0 refs for receiverless send, got %d: %v", len(refs), refs)
+	}
+}
+
+func TestScanRubyStringRefs_Send_SymbolNotFirst_NotDetected(t *testing.T) {
+	dir := t.TempDir()
+	writeFile(t, dir, "app.rb", `article.send("other", :title)`)
+
+	refs, _, err := ScanRubyStringRefs(dir, "title")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(refs) != 0 {
+		t.Errorf("want 0 refs when symbol is not first arg, got %d: %v", len(refs), refs)
+	}
+}
