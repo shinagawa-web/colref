@@ -25,7 +25,7 @@ var rubySymbolArgMethods = map[string]bool{
 	"select": true, "order": true, "pluck": true,
 	"pick": true, "group": true, "reorder": true,
 	"update_column": true,
-	"minimum": true, "maximum": true, "sum": true,
+	"minimum":       true, "maximum": true, "sum": true,
 	"average": true, "count": true,
 }
 
