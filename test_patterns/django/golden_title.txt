@@ -10,6 +10,9 @@ References found for Article.title
   references.py:37   a.title
   references.py:40   article.title
   references.py:41   article.title
+  references.py:44   [getattr] x = getattr(article, 'title')                          # getattr literal
+  references.py:45   [getattr] x = getattr(article, 'title', '')                      # getattr with default
+  references.py:46   [getattr] x = operator.attrgetter('title')(article)              # attrgetter
   references.py:50   [string] qs = Article.objects.filter(title='x')                 # filter keyword
   references.py:51   [string] qs = Article.objects.filter(title__icontains='x')      # filter lookup
   references.py:52   [string] qs = Article.objects.exclude(title='x')                # exclude

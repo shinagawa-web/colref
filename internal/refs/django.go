@@ -167,6 +167,36 @@ func walkNodeStringRefs(node *sitter.Node, src []byte, lines [][]byte, fieldName
 							break
 						}
 					}
+				case methodName == "getattr":
+					// Second positional arg is the field name string.
+					// Variable-arg form getattr(obj, field_var) is not detected.
+					pos := 0
+					for i := 0; i < int(args.ChildCount()); i++ {
+						child := args.Child(i)
+						t := child.Type()
+						if t == "," || t == "(" || t == ")" || t == "keyword_argument" {
+							continue
+						}
+						if pos == 1 {
+							if t == "string" && stringContent(child, src) == fieldName {
+								addGetAttrRef(child, lines, file, refs)
+							}
+							break
+						}
+						pos++
+					}
+				case methodName == "attrgetter":
+					// First positional arg is the field name string.
+					// Works for attrgetter('field') and operator.attrgetter('field').
+					for i := 0; i < int(args.ChildCount()); i++ {
+						child := args.Child(i)
+						if child.Type() == "string" {
+							if stringContent(child, src) == fieldName {
+								addGetAttrRef(child, lines, file, refs)
+							}
+							break
+						}
+					}
 				}
 			}
 		}
@@ -208,6 +238,16 @@ func addStringRef(node *sitter.Node, lines [][]byte, file string, refs *[]Refere
 		File: file,
 		Line: row + 1,
 		Text: "[string] " + strings.TrimSpace(lineAt(lines, row)),
+	})
+}
+
+// addGetAttrRef appends a [getattr]-labeled Reference using the node's source row.
+func addGetAttrRef(node *sitter.Node, lines [][]byte, file string, refs *[]Reference) {
+	row := int(node.StartPoint().Row)
+	*refs = append(*refs, Reference{
+		File: file,
+		Line: row + 1,
+		Text: "[getattr] " + strings.TrimSpace(lineAt(lines, row)),
 	})
 }
 
