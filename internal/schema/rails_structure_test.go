@@ -258,9 +258,9 @@ func TestSqlNextIdent(t *testing.T) {
 		{`"users" more`, "users", " more"},
 		{"`users` more", "users", " more"},
 		{"users more", "users", " more"},
-		{"users", "users", ""},          // unquoted with no separator → rest is ""
-		{`"unterminated`, "", ""},       // unterminated double-quote
-		{"`unterminated", "", ""},       // unterminated backtick
+		{"users", "users", ""},    // unquoted with no separator → rest is ""
+		{`"unterminated`, "", ""}, // unterminated double-quote
+		{"`unterminated", "", ""}, // unterminated backtick
 		{"", "", ""},
 	}
 	for _, tt := range tests {
@@ -278,11 +278,11 @@ func TestSqlExtractCreateTableName(t *testing.T) {
 		want  string
 	}{
 		{"not a create statement", ""},
-		{"CREATE TABLE ", ""},                           // empty after keyword → ident1 == ""
+		{"CREATE TABLE ", ""}, // empty after keyword → ident1 == ""
 		{`CREATE TABLE "users" (`, "users"},
 		{"CREATE TABLE public.users (", "users"},
 		{`CREATE TABLE "public"."users" (`, "users"},
-		{`CREATE TABLE public.( (`, "public"},           // dot then non-ident → fall back to ident1
+		{`CREATE TABLE public.( (`, "public"}, // dot then non-ident → fall back to ident1
 	}
 	for _, tt := range tests {
 		if got := sqlExtractCreateTableName(tt.input); got != tt.want {
@@ -297,13 +297,13 @@ func TestSqlExtractAlterAddColumn(t *testing.T) {
 		wantTable string
 		wantCol   string
 	}{
-		{"RENAME TABLE users TO new_name", "", ""},                             // no "ALTER TABLE" present
-		{"ALTER TABLE ", "", ""},                                                 // ident1 == ""
-		{`ALTER TABLE "users" RENAME TO new_users`, "", ""},                     // addIdx < 0
-		{`ALTER TABLE "users" ADDING COLUMN "bio" text`, "", ""},               // "ADD" is part of "ADDING"
+		{"RENAME TABLE users TO new_name", "", ""},               // no "ALTER TABLE" present
+		{"ALTER TABLE ", "", ""},                                 // ident1 == ""
+		{`ALTER TABLE "users" RENAME TO new_users`, "", ""},      // addIdx < 0
+		{`ALTER TABLE "users" ADDING COLUMN "bio" text`, "", ""}, // "ADD" is part of "ADDING"
 		{`ALTER TABLE "users" ADD COLUMN "bio" text`, "users", "bio"},
 		{`ALTER TABLE "users" ADD COLUMN IF NOT EXISTS "bio" text`, "users", "bio"},
-		{`ALTER TABLE public.( ADD COLUMN "email" varchar`, "public", "email"},  // schema. fallback to ident1
+		{`ALTER TABLE public.( ADD COLUMN "email" varchar`, "public", "email"}, // schema. fallback to ident1
 	}
 	for _, tt := range tests {
 		table, col := sqlExtractAlterAddColumn(tt.input)
