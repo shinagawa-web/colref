@@ -228,3 +228,88 @@ CREATE TABLE users (
 		t.Errorf("got %v", got)
 	}
 }
+
+func TestParseStructureSql_AlterAddColumn_IfNotExists(t *testing.T) {
+	src := []byte(`
+CREATE TABLE "users" (
+  "id" bigint NOT NULL
+);
+
+ALTER TABLE "users" ADD COLUMN IF NOT EXISTS "bio" text;
+`)
+	fields, err := ParseStructureSql(src)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	got := fieldNames(fields, "User")
+	if !slices.Equal(got, []string{"bio", "id"}) {
+		t.Errorf("got %v", got)
+	}
+}
+
+// Tests for internal helper functions (package-level access).
+
+func TestSqlNextIdent(t *testing.T) {
+	tests := []struct {
+		input     string
+		wantIdent string
+		wantRest  string
+	}{
+		{`"users" more`, "users", " more"},
+		{"`users` more", "users", " more"},
+		{"users more", "users", " more"},
+		{"users", "users", ""},          // unquoted with no separator → rest is ""
+		{`"unterminated`, "", ""},       // unterminated double-quote
+		{"`unterminated", "", ""},       // unterminated backtick
+		{"", "", ""},
+	}
+	for _, tt := range tests {
+		ident, rest := sqlNextIdent(tt.input)
+		if ident != tt.wantIdent || rest != tt.wantRest {
+			t.Errorf("sqlNextIdent(%q) = (%q, %q), want (%q, %q)",
+				tt.input, ident, rest, tt.wantIdent, tt.wantRest)
+		}
+	}
+}
+
+func TestSqlExtractCreateTableName(t *testing.T) {
+	tests := []struct {
+		input string
+		want  string
+	}{
+		{"not a create statement", ""},
+		{"CREATE TABLE ", ""},                           // empty after keyword → ident1 == ""
+		{`CREATE TABLE "users" (`, "users"},
+		{"CREATE TABLE public.users (", "users"},
+		{`CREATE TABLE "public"."users" (`, "users"},
+		{`CREATE TABLE public.( (`, "public"},           // dot then non-ident → fall back to ident1
+	}
+	for _, tt := range tests {
+		if got := sqlExtractCreateTableName(tt.input); got != tt.want {
+			t.Errorf("sqlExtractCreateTableName(%q) = %q, want %q", tt.input, got, tt.want)
+		}
+	}
+}
+
+func TestSqlExtractAlterAddColumn(t *testing.T) {
+	tests := []struct {
+		input     string
+		wantTable string
+		wantCol   string
+	}{
+		{"RENAME TABLE users TO new_name", "", ""},                             // no "ALTER TABLE" present
+		{"ALTER TABLE ", "", ""},                                                 // ident1 == ""
+		{`ALTER TABLE "users" RENAME TO new_users`, "", ""},                     // addIdx < 0
+		{`ALTER TABLE "users" ADDING COLUMN "bio" text`, "", ""},               // "ADD" is part of "ADDING"
+		{`ALTER TABLE "users" ADD COLUMN "bio" text`, "users", "bio"},
+		{`ALTER TABLE "users" ADD COLUMN IF NOT EXISTS "bio" text`, "users", "bio"},
+		{`ALTER TABLE public.( ADD COLUMN "email" varchar`, "public", "email"},  // schema. fallback to ident1
+	}
+	for _, tt := range tests {
+		table, col := sqlExtractAlterAddColumn(tt.input)
+		if table != tt.wantTable || col != tt.wantCol {
+			t.Errorf("sqlExtractAlterAddColumn(%q) = (%q, %q), want (%q, %q)",
+				tt.input, table, col, tt.wantTable, tt.wantCol)
+		}
+	}
+}
