@@ -197,6 +197,28 @@ func walkNodeStringRefs(node *sitter.Node, src []byte, lines [][]byte, fieldName
 							break
 						}
 					}
+				case methodName == "save":
+					// article.save(update_fields=['title', 'slug'])
+					for i := 0; i < int(args.ChildCount()); i++ {
+						child := args.Child(i)
+						if child.Type() != "keyword_argument" {
+							continue
+						}
+						nameNode := child.ChildByFieldName("name")
+						if nameNode == nil || nameNode.Content(src) != "update_fields" {
+							continue
+						}
+						val := child.ChildByFieldName("value")
+						if val == nil || val.Type() != "list" {
+							continue
+						}
+						for j := 0; j < int(val.ChildCount()); j++ {
+							elem := val.Child(j)
+							if elem.Type() == "string" && stringContent(elem, src) == fieldName {
+								addStringRef(elem, lines, file, refs)
+							}
+						}
+					}
 				}
 			}
 		}
