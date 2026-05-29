@@ -48,7 +48,12 @@ References found for Article.title
   references.rb:68          [string] t = Article.arel_table[:title]                        # table subscript
   references.rb:69          [string] Article.arel_table[:title].eq(value)                  # arel condition
   references.rb:70          [string] scope :titled, ->(v) { where(arel_table[:title].eq(v)) }  # implicit self
-  references.rb:86          [sql ref] Article.find_by_sql("SELECT title FROM articles WHERE title = ?", value)    # find_by_sql string
-  references.rb:87          [sql ref] connection.execute("UPDATE articles SET title = ?", value)                  # execute string
-  references.rb:88          [sql ref] connection.select_all("SELECT title, slug FROM articles")                   # select_all string
-  references.rb:89          [sql ref] Article.find_by_sql(<<~SQL)                                                  # find_by_sql heredoc
+  references.rb:78          [string] article.slice(:title, :slug)                          # slice symbols
+  references.rb:79          [string] article.as_json(only: [:title])                       # as_json only:
+  references.rb:80          [string] article.as_json(except: [:title])                     # as_json except:
+  references.rb:81          [string] article.to_json(only: [:title])                       # to_json only:
+  references.rb:82          [string] article.to_xml(only: [:title])                        # to_xml only:
+  references.rb:91          [sql ref] Article.find_by_sql("SELECT title FROM articles WHERE title = ?", value)    # find_by_sql string
+  references.rb:92          [sql ref] connection.execute("UPDATE articles SET title = ?", value)                  # execute string
+  references.rb:93          [sql ref] connection.select_all("SELECT title, slug FROM articles")                   # select_all string
+  references.rb:94          [sql ref] Article.find_by_sql(<<~SQL)                                                  # find_by_sql heredoc

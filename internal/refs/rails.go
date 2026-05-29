@@ -27,6 +27,13 @@ var rubySymbolArgMethods = map[string]bool{
 	"update_column": true,
 	"minimum":       true, "maximum": true, "sum": true,
 	"average": true, "count": true,
+	"slice": true,
+}
+
+// rubyOnlyExceptMethods are ActiveRecord/Rails serialization methods that accept
+// an only: or except: keyword argument whose value is an array of field symbols/strings.
+var rubyOnlyExceptMethods = map[string]bool{
+	"as_json": true, "to_json": true, "to_xml": true,
 }
 
 // rubySymbolFirstArgMethods are methods whose first positional symbol argument
@@ -255,6 +262,22 @@ func walkNodeRubyStringRefsInner(node *sitter.Node, src []byte, lines [][]byte, 
 					key := child.ChildByFieldName("key")
 					if key != nil && key.Type() == "hash_key_symbol" && key.Content(src) == fieldName {
 						addRubyStringRef(key, lines, file, refs)
+					}
+				}
+				if rubyOnlyExceptMethods[methodName] {
+					key := child.ChildByFieldName("key")
+					val := child.ChildByFieldName("value")
+					if key != nil && key.Type() == "hash_key_symbol" &&
+						(key.Content(src) == "only" || key.Content(src) == "except") &&
+						val != nil && val.Type() == "array" {
+						for j := 0; j < int(val.ChildCount()); j++ {
+							elem := val.Child(j)
+							if elem.Type() == "simple_symbol" && rubySymbolName(elem, src) == fieldName {
+								addRubyStringRef(elem, lines, file, refs)
+							} else if elem.Type() == "string" && rubyStringContent(elem, src) == fieldName {
+								addRubyStringRef(elem, lines, file, refs)
+							}
+						}
 					}
 				}
 			case "string":

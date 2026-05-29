@@ -75,6 +75,11 @@ if false
   # ── Serialization / presentation ─────────────────────────────────────────────
   params.require(:article).permit(:title, :slug)        # strong params permit
   # AMS attributes: see app/serializers/article_serializer.rb
+  article.slice(:title, :slug)                          # slice symbols
+  article.as_json(only: [:title])                       # as_json only:
+  article.as_json(except: [:title])                     # as_json except:
+  article.to_json(only: [:title])                       # to_json only:
+  article.to_xml(only: [:title])                        # to_xml only:
 
   # ── Dynamic / metaprogramming ─────────────────────────────────────────────────
   article.respond_to?(:title)                           # respond_to?

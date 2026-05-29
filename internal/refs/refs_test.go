@@ -2696,6 +2696,116 @@ func TestScanRubyStringRefs_Calculate_OperationNotField(t *testing.T) {
 	}
 }
 
+// ── Rails serialization / slice / as_json tests (issue #129) ─────────────────
+
+func TestScanRubyStringRefs_Slice_Symbol(t *testing.T) {
+	dir := t.TempDir()
+	writeFile(t, dir, "app.rb", `article.slice(:title, :slug)`)
+	refs, _, err := ScanRubyStringRefs(dir, "title")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(refs) != 1 || refs[0].Text != "[string] article.slice(:title, :slug)" {
+		t.Errorf("unexpected refs: %v", refs)
+	}
+}
+
+func TestScanRubyStringRefs_Slice_String(t *testing.T) {
+	dir := t.TempDir()
+	writeFile(t, dir, "app.rb", `article.slice("title", "slug")`)
+	refs, _, err := ScanRubyStringRefs(dir, "title")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(refs) != 1 || refs[0].Text != `[string] article.slice("title", "slug")` {
+		t.Errorf("unexpected refs: %v", refs)
+	}
+}
+
+func TestScanRubyStringRefs_AsJson_Only_Symbol(t *testing.T) {
+	dir := t.TempDir()
+	writeFile(t, dir, "app.rb", `article.as_json(only: [:title, :slug])`)
+	refs, _, err := ScanRubyStringRefs(dir, "title")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(refs) != 1 || refs[0].Text != "[string] article.as_json(only: [:title, :slug])" {
+		t.Errorf("unexpected refs: %v", refs)
+	}
+}
+
+func TestScanRubyStringRefs_AsJson_Only_String(t *testing.T) {
+	dir := t.TempDir()
+	writeFile(t, dir, "app.rb", `article.as_json(only: ["title"])`)
+	refs, _, err := ScanRubyStringRefs(dir, "title")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(refs) != 1 || refs[0].Text != `[string] article.as_json(only: ["title"])` {
+		t.Errorf("unexpected refs: %v", refs)
+	}
+}
+
+func TestScanRubyStringRefs_AsJson_Except(t *testing.T) {
+	dir := t.TempDir()
+	writeFile(t, dir, "app.rb", `article.as_json(except: [:created_at])`)
+	refs, _, err := ScanRubyStringRefs(dir, "created_at")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(refs) != 1 || refs[0].Text != "[string] article.as_json(except: [:created_at])" {
+		t.Errorf("unexpected refs: %v", refs)
+	}
+}
+
+func TestScanRubyStringRefs_ToJson_Only(t *testing.T) {
+	dir := t.TempDir()
+	writeFile(t, dir, "app.rb", `article.to_json(only: [:title])`)
+	refs, _, err := ScanRubyStringRefs(dir, "title")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(refs) != 1 || refs[0].Text != "[string] article.to_json(only: [:title])" {
+		t.Errorf("unexpected refs: %v", refs)
+	}
+}
+
+func TestScanRubyStringRefs_ToXml_Only(t *testing.T) {
+	dir := t.TempDir()
+	writeFile(t, dir, "app.rb", `article.to_xml(only: [:title])`)
+	refs, _, err := ScanRubyStringRefs(dir, "title")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(refs) != 1 || refs[0].Text != "[string] article.to_xml(only: [:title])" {
+		t.Errorf("unexpected refs: %v", refs)
+	}
+}
+
+func TestScanRubyStringRefs_AsJson_WrongField_NotDetected(t *testing.T) {
+	dir := t.TempDir()
+	writeFile(t, dir, "app.rb", `article.as_json(only: [:slug])`)
+	refs, _, err := ScanRubyStringRefs(dir, "title")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(refs) != 0 {
+		t.Errorf("wrong field should not produce refs, got: %v", refs)
+	}
+}
+
+func TestScanRubyStringRefs_AsJson_DynamicArray_NotDetected(t *testing.T) {
+	dir := t.TempDir()
+	writeFile(t, dir, "app.rb", `article.as_json(only: fields)`)
+	refs, _, err := ScanRubyStringRefs(dir, "title")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(refs) != 0 {
+		t.Errorf("dynamic array should not produce refs, got: %v", refs)
+	}
+}
+
 // ── Rails raw SQL reference tests ────────────────────────────────────────────
 
 func TestScanRubyStringRefs_FindBySql_StringArg(t *testing.T) {
