@@ -57,6 +57,10 @@ var parseModelsWithSet = schema.ParseModelsWithSet
 // It is a var so tests can inject a failing version to cover error paths.
 var parseSchemaRb = schema.ParseSchemaRb
 
+// parseStructureSql is the function used to parse a db/structure.sql source file.
+// It is a var so tests can inject a failing version to cover error paths.
+var parseStructureSql = schema.ParseStructureSql
+
 // parseMigrations is the function used to parse db/migrate/ files.
 // It is a var so tests can inject a failing version to cover error paths.
 var parseMigrations = schema.ParseMigrations
@@ -77,19 +81,36 @@ func runCheck(dir, modelName, fieldName, ormName string) error {
 }
 
 func runCheckRails(dir, modelName, fieldName string) error {
+	// 1. db/schema.rb (preferred).
 	schemaFile := filepath.Join(dir, "db", "schema.rb")
 	src, err := os.ReadFile(schemaFile)
-	if err != nil {
-		if errors.Is(err, os.ErrNotExist) {
-			return runCheckRailsMigrations(dir, modelName, fieldName)
+	if err == nil {
+		fields, err := parseSchemaRb(src)
+		if err != nil {
+			return fmt.Errorf("parse %s: %w", schemaFile, err)
 		}
+		return runCheckFields(dir, modelName, fieldName, fields, refs.ScanRuby)
+	}
+	if !errors.Is(err, os.ErrNotExist) {
 		return fmt.Errorf("read %s: %w", schemaFile, err)
 	}
-	fields, err := parseSchemaRb(src)
-	if err != nil {
-		return fmt.Errorf("parse %s: %w", schemaFile, err)
+
+	// 2. db/structure.sql (used when config.active_record.schema_format = :sql).
+	structureFile := filepath.Join(dir, "db", "structure.sql")
+	src, err = os.ReadFile(structureFile)
+	if err == nil {
+		fields, err := parseStructureSql(src)
+		if err != nil {
+			return fmt.Errorf("parse %s: %w", structureFile, err)
+		}
+		return runCheckFields(dir, modelName, fieldName, fields, refs.ScanRuby)
 	}
-	return runCheckFields(dir, modelName, fieldName, fields, refs.ScanRuby)
+	if !errors.Is(err, os.ErrNotExist) {
+		return fmt.Errorf("read %s: %w", structureFile, err)
+	}
+
+	// 3. db/migrate/ (fallback when no schema dump is present).
+	return runCheckRailsMigrations(dir, modelName, fieldName)
 }
 
 func runCheckRailsMigrations(dir, modelName, fieldName string) error {

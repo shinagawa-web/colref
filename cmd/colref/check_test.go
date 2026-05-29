@@ -654,6 +654,109 @@ func TestRunCheck_Rails_ParseError(t *testing.T) {
 	}
 }
 
+func setupRailsStructureFixture(t *testing.T) string {
+	t.Helper()
+	dir := t.TempDir()
+	dbDir := filepath.Join(dir, "db")
+	if err := os.MkdirAll(dbDir, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(dbDir, "structure.sql"), []byte(`
+CREATE TABLE "users" (
+  "id" bigint NOT NULL,
+  "email" character varying NOT NULL,
+  "name" character varying
+);
+`), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(dir, "app.rb"), []byte(`user.email`), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	return dir
+}
+
+func TestRunCheck_Rails_StructureSql_RefsFound(t *testing.T) {
+	// No schema.rb: falls through to structure.sql.
+	dir := setupRailsStructureFixture(t)
+	if err := runCheck(dir, "User", "email", "rails"); err != nil {
+		t.Fatalf("structure.sql path should not error: %v", err)
+	}
+}
+
+func TestRunCheck_Rails_StructureSql_SchemaRbWins(t *testing.T) {
+	// Both schema.rb and structure.sql present: schema.rb takes priority.
+	dir := setupRailsFixture(t)
+	dbDir := filepath.Join(dir, "db")
+	// Write a structure.sql with a different model so we can tell which was used.
+	if err := os.WriteFile(filepath.Join(dbDir, "structure.sql"), []byte(`
+CREATE TABLE "posts" (
+  "id" bigint NOT NULL,
+  "title" character varying
+);
+`), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	// schema.rb defines User; structure.sql defines Post.
+	// If schema.rb wins, "User"/"email" should be found.
+	if err := runCheck(dir, "User", "email", "rails"); err != nil {
+		t.Fatalf("schema.rb should win over structure.sql: %v", err)
+	}
+}
+
+func TestRunCheck_Rails_StructureSql_FallsBackToMigrations(t *testing.T) {
+	// No schema.rb, no structure.sql: falls back to db/migrate/.
+	dir := setupRailsMigrationsFixture(t)
+	if err := runCheck(dir, "User", "email", "rails"); err != nil {
+		t.Fatalf("migrations fallback should not error: %v", err)
+	}
+}
+
+func TestRunCheck_Rails_StructureSql_ReadError(t *testing.T) {
+	dir := t.TempDir()
+	dbDir := filepath.Join(dir, "db")
+	if err := os.MkdirAll(dbDir, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	sqlPath := filepath.Join(dbDir, "structure.sql")
+	if err := os.WriteFile(sqlPath, []byte("-- sql"), 0o000); err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = os.Chmod(sqlPath, 0o644) })
+
+	err := runCheck(dir, "User", "email", "rails")
+	if err == nil {
+		t.Fatal("expected error for unreadable structure.sql")
+	}
+	if !strings.Contains(err.Error(), "read") {
+		t.Errorf("expected 'read' in error, got: %v", err)
+	}
+}
+
+func TestRunCheck_Rails_StructureSql_ParseError(t *testing.T) {
+	orig := parseStructureSql
+	parseStructureSql = func(src []byte) ([]schema.Field, error) {
+		return nil, fmt.Errorf("injected structure.sql parse error")
+	}
+	defer func() { parseStructureSql = orig }()
+
+	dir := t.TempDir()
+	dbDir := filepath.Join(dir, "db")
+	if err := os.MkdirAll(dbDir, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(dbDir, "structure.sql"), []byte("-- sql"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	err := runCheck(dir, "User", "email", "rails")
+	if err == nil {
+		t.Fatal("expected parse error")
+	}
+	if !strings.Contains(err.Error(), "injected structure.sql parse error") {
+		t.Errorf("unexpected error: %v", err)
+	}
+}
+
 func TestCheckCmd_RunE_WithArg(t *testing.T) {
 	dir := setupDjangoFixture(t)
 

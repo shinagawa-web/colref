@@ -35,9 +35,13 @@ References found for Account.memorial
 
 ## Schema source
 
-colref first looks for `db/schema.rb`. If present, it extracts the current column list from there.
+colref looks for a schema source in the following order:
 
-If `db/schema.rb` is not present (some projects treat it as a generated artifact and do not commit it), colref falls back to `db/migrate/`. It replays migration files in timestamp order — `create_table`, `add_column`, `remove_column`, `rename_column`, `drop_table` — to reconstruct the current schema. Model and field validation remain fully intact.
+1. **`db/schema.rb`** — the standard Rails schema dump (`:ruby` format). Present in most projects.
+2. **`db/structure.sql`** — used when `config.active_record.schema_format = :sql` (PostgreSQL-specific features such as custom types, partial indexes, or materialized views that `schema.rb` cannot represent). Supports PostgreSQL, MySQL, and SQLite quoting styles.
+3. **`db/migrate/`** — fallback when no schema dump is committed. colref replays migration files in timestamp order — `create_table`, `add_column`, `remove_column`, `rename_column`, `drop_table` — to reconstruct the current schema.
+
+Model and field validation are fully intact regardless of which source is used.
 
 ## Detection coverage
 
