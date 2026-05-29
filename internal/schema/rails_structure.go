@@ -13,8 +13,14 @@ import (
 //
 // Supported quoting styles: double-quoted ("col"), backtick-quoted (`col`),
 // and unquoted. Optional schema prefixes (e.g. public.users) are stripped.
+// sqlMaxLineBytes is the scanner token limit. pg_dump output can include long
+// lines (function bodies, CHECK expressions, extensions), so we use 4 MiB
+// instead of bufio's default 64 KiB to avoid spurious ErrTooLong errors.
+const sqlMaxLineBytes = 4 * 1024 * 1024
+
 func ParseStructureSql(src []byte) ([]Field, error) {
 	scanner := bufio.NewScanner(bytes.NewReader(src))
+	scanner.Buffer(make([]byte, 64*1024), sqlMaxLineBytes)
 	var fields []Field
 
 	inTable := false
@@ -191,10 +197,12 @@ func sqlFirstIdent(line string) string {
 	return name
 }
 
-// sqlConstraintPrefixes are keywords that start a table constraint line
-// inside a CREATE TABLE block (not a column definition).
+// sqlConstraintPrefixes are keywords that unambiguously start a table
+// constraint line inside a CREATE TABLE block. "KEY" is intentionally
+// excluded here because it is also a valid column name in some databases;
+// bare MySQL KEY index lines are handled separately in sqlIsConstraintLine.
 var sqlConstraintPrefixes = []string{
-	"PRIMARY", "UNIQUE", "KEY", "CONSTRAINT", "FOREIGN", "INDEX", "CHECK", "EXCLUDE",
+	"PRIMARY", "UNIQUE", "CONSTRAINT", "FOREIGN", "INDEX", "CHECK", "EXCLUDE",
 }
 
 // sqlIsConstraintLine reports whether an upper-cased, trimmed line is a
@@ -204,6 +212,15 @@ func sqlIsConstraintLine(upperTrimmed string) bool {
 		if strings.HasPrefix(upperTrimmed, kw) {
 			return true
 		}
+	}
+	// MySQL bare KEY index: KEY idx_name (cols) — the column list is
+	// parenthesised and follows the index name after whitespace.
+	// A column named "key" has a type next (e.g. "key varchar"), not a
+	// parenthesised list, so we check that the token after the name is '('.
+	if strings.HasPrefix(upperTrimmed, "KEY") &&
+		(len(upperTrimmed) == 3 || !sqlIsWordByte(upperTrimmed[3])) {
+		_, rest := sqlNextIdent(strings.TrimSpace(upperTrimmed[3:]))
+		return strings.HasPrefix(strings.TrimSpace(rest), "(")
 	}
 	return false
 }

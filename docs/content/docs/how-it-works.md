@@ -17,7 +17,7 @@ AST parsing avoids false positives from comments, migration files, and unrelated
 
 **Django** — colref walks the target directory to find `models.py` files. Each file is parsed and the field list for the requested model is extracted. If the same model name appears in multiple files, colref exits with an error.
 
-**Rails** — colref reads `db/schema.rb` and maps table names to model names by convention (`users` → `User`). If `db/schema.rb` is absent, colref falls back to replaying `db/migrate/` in timestamp order, applying `create_table`, `add_column`, `remove_column`, `rename_column`, and `drop_table` operations to reconstruct the live schema.
+**Rails** — colref looks for a schema source in order: `db/schema.rb` → `db/structure.sql` → `db/migrate/`. Table names are mapped to model names by convention (`users` → `User`). `db/structure.sql` is used by projects that set `config.active_record.schema_format = :sql`. The migrations fallback replays `create_table`, `add_column`, `remove_column`, `rename_column`, and `drop_table` operations in timestamp order to reconstruct the live schema.
 
 ## AST scanning
 

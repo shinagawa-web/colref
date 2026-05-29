@@ -2,6 +2,7 @@ package schema
 
 import (
 	"slices"
+	"strings"
 	"testing"
 )
 
@@ -225,6 +226,40 @@ CREATE TABLE users (
 	}
 	got := fieldNames(fields, "User")
 	if !slices.Equal(got, []string{"email", "id"}) {
+		t.Errorf("got %v", got)
+	}
+}
+
+func TestParseStructureSql_ColumnNamedKey(t *testing.T) {
+	// A column literally named "key" must not be mistaken for a MySQL KEY index line.
+	src := []byte(`
+CREATE TABLE "api_tokens" (
+  "id" bigint NOT NULL,
+  "key" character varying NOT NULL,
+  "value" text
+);
+`)
+	fields, err := ParseStructureSql(src)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	got := fieldNames(fields, "ApiToken")
+	if !slices.Equal(got, []string{"id", "key", "value"}) {
+		t.Errorf("column named 'key' should not be skipped, got %v", got)
+	}
+}
+
+func TestParseStructureSql_LongLine(t *testing.T) {
+	// Lines longer than bufio's default 64 KiB (e.g. long CHECK expressions)
+	// must not cause an ErrTooLong error.
+	longComment := strings.Repeat("x", 128*1024)
+	src := []byte("-- " + longComment + "\nCREATE TABLE \"users\" (\n  \"id\" bigint NOT NULL\n);\n")
+	fields, err := ParseStructureSql(src)
+	if err != nil {
+		t.Fatalf("unexpected error for long line: %v", err)
+	}
+	got := fieldNames(fields, "User")
+	if !slices.Equal(got, []string{"id"}) {
 		t.Errorf("got %v", got)
 	}
 }
