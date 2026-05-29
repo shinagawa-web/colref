@@ -420,7 +420,6 @@ func isWordChar(c byte) bool {
 	return (c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z') || (c >= '0' && c <= '9') || c == '_'
 }
 
-// addRubyStringRef appends a [string]-labeled Reference at the node's source row.
 // scanRubyHashPairs scans pair children of a hash node and emits a [string]
 // reference for each hash_key_symbol key that matches fieldName.
 func scanRubyHashPairs(hash *sitter.Node, src []byte, lines [][]byte, fieldName, file string, refs *[]Reference) {
@@ -436,6 +435,7 @@ func scanRubyHashPairs(hash *sitter.Node, src []byte, lines [][]byte, fieldName,
 	}
 }
 
+// addRubyStringRef appends a [string]-labeled Reference at the node's source row.
 func addRubyStringRef(node *sitter.Node, lines [][]byte, file string, refs *[]Reference) {
 	row := int(node.StartPoint().Row)
 	*refs = append(*refs, Reference{
