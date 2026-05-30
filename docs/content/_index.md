@@ -28,7 +28,8 @@ No references found for User.email
   Verify manually before deleting.
 ```
 
-→ [Getting started]({{< relref "docs/getting-started" >}}) — installation and first run  
+→ [Installation]({{< relref "docs/installation" >}}) — pip, gem, brew, curl, or manual download  
+→ [Getting started]({{< relref "docs/getting-started" >}}) — first run examples  
 → [Usage]({{< relref "docs/usage/_index" >}}) — flags reference and ORM-specific behavior  
 → [Use cases]({{< relref "docs/use-cases" >}}) — schema cleanup, CI integration, audits, and more  
 → [How it works]({{< relref "docs/how-it-works" >}}) — AST parsing and schema extraction  
