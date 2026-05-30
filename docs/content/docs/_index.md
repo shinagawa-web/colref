@@ -5,7 +5,8 @@ type: docs
 
 # Documentation
 
-- [Getting started]({{< relref "getting-started" >}}) — installation and first run
+- [Installation]({{< relref "installation" >}}) — install methods (pip, gem, brew, curl, manual)
+- [Getting started]({{< relref "getting-started" >}}) — first run examples
 - [Usage]({{< relref "usage/_index" >}}) — flags reference and ORM-specific behavior
 - [Use cases]({{< relref "use-cases" >}}) — schema cleanup, CI integration, audits, and more
 - [How it works]({{< relref "how-it-works" >}}) — AST parsing and schema extraction

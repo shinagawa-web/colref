@@ -5,32 +5,7 @@ weight: 21
 
 # Django
 
-## Example
-
-The following examples use [wagtail](https://github.com/wagtail/wagtail), a popular Django CMS.
-
-**No references found:**
-
-```
-$ colref check --orm django --model Page --field search_description
-Scanning 932 files...
-
-No references found for Page.search_description
-
-  Verify manually before deleting.
-```
-
-**References found:**
-
-```
-$ colref check --orm django --model Page --field seo_title
-Scanning 932 files...
-
-References found for Page.seo_title
-
-  wagtail/admin/tests/pages/test_create_page.py:1867   page.seo_title
-  wagtail/admin/tests/pages/test_create_page.py:1892   page.seo_title
-```
+See [Getting started]({{< relref "getting-started" >}}) for usage examples.
 
 ## models.py detection
 
