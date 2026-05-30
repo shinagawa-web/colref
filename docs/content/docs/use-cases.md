@@ -45,14 +45,18 @@ If a pull request migration drops or renames a column, run colref automatically 
 
 ```sh
 # detect dropped columns from migration diff (Rails example)
+# adjust the model name to match your application's naming convention
+# note: remove_column :table, :column[, :type] — tail -2 | head -1 isolates the column symbol
 DROPPED=$(git diff origin/main -- "db/migrate/*.rb" \
   | grep "remove_column" \
   | grep -oE ":[a-z_]+" \
-  | tail -1 \
+  | tail -2 | head -1 \
   | tr -d ':')
 
+MODEL=User  # replace with the model that owns the dropped column
+
 for field in $DROPPED; do
-  output=$(colref check --orm rails --model YourModel --field "$field")
+  output=$(colref check --orm rails --model "$MODEL" --field "$field")
   echo "$output"
   if echo "$output" | grep -q "^References found"; then
     echo "colref: references to $field still exist — remove them before dropping the column" >&2
@@ -69,11 +73,11 @@ The output direction matters here (see [Output direction](#output-direction) bel
 
 ### Sensitive column access map
 
-Where is `email` referenced? Where does `password` appear in code?
+Where is `email` referenced? Where does `ssn` appear in code?
 
 ```sh
 colref check --orm django --model User --field email
-colref check --orm django --model User --field password
+colref check --orm django --model User --field ssn
 ```
 
 The output shows every place in the codebase that touches these fields. This doesn't replace a proper data flow audit, but it surfaces access points quickly — useful when preparing for a privacy review or mapping data flows for compliance documentation.
@@ -87,7 +91,7 @@ Combine colref with a search for serialization methods to check whether a sensit
 colref check --orm rails --model User --field ssn
 
 # check for serializer declarations
-grep -rn -E "as_json|to_json|attributes.*ssn" app/
+grep -rnE "as_json|to_json|attributes.*ssn" app/
 ```
 
 If colref finds accesses and a serializer declaration includes the field name, investigate whether that output is exposed externally.
