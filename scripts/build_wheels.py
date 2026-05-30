@@ -78,7 +78,7 @@ def _build_wheel(
         f"Name: colref\n"
         f"Version: {version}\n"
         f"Summary: Check whether a database column is still referenced in your codebase before you delete it\n"
-        f"Home-page: https://github.com/shinagawa-web/colref\n"
+        f"Home-page: https://shinagawa-web.github.io/colref/\n"
         f"License: MIT\n"
         f"Requires-Python: >=3.8\n"
         f"Classifier: Development Status :: 4 - Beta\n"
