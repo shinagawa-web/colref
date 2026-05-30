@@ -7,7 +7,10 @@ weight: 50
 
 colref uses static AST analysis and cannot detect every reference pattern. References where the field name is constructed at runtime (e.g. `getattr(obj, field_name)`) are out of scope by design.
 
-**If colref reports no references, treat it as "none found by the scanner" — not as a guarantee the column is unused.**
+{{< hint warning >}}
+**No references found ≠ safe to delete.**
+colref reports what static analysis can see. Dynamic references such as `getattr(obj, var)` are out of scope by design — treat zero results as a starting point for human review, not as proof the column is unused.
+{{< /hint >}}
 
 ## Django
 
