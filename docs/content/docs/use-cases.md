@@ -44,11 +44,20 @@ This is a precondition check, not a guess. If colref returns references, the con
 If a pull request migration drops or renames a column, run colref automatically and fail the build (or post a comment) if references remain.
 
 ```sh
-# detect dropped columns from migration diff
-DROPPED=$(git diff origin/main -- "db/migrate/*.rb" | grep -oP "remove_column :\w+, :\K\w+")
+# detect dropped columns from migration diff (Rails example)
+DROPPED=$(git diff origin/main -- "db/migrate/*.rb" \
+  | grep "remove_column" \
+  | grep -oE ":[a-z_]+" \
+  | tail -1 \
+  | tr -d ':')
 
 for field in $DROPPED; do
-  colref check --orm rails --model YourModel --field "$field" ./ && echo "SAFE" || exit 1
+  output=$(colref check --orm rails --model YourModel --field "$field")
+  echo "$output"
+  if echo "$output" | grep -q "^References found"; then
+    echo "colref: references to $field still exist — remove them before dropping the column" >&2
+    exit 1
+  fi
 done
 ```
 
@@ -60,7 +69,7 @@ The output direction matters here (see [Output direction](#output-direction) bel
 
 ### Sensitive column access map
 
-Where is `email` read? Where is `password_digest` written?
+Where is `email` referenced? Where does `password` appear in code?
 
 ```sh
 colref check --orm django --model User --field email
@@ -78,7 +87,7 @@ Combine colref with a search for serialization methods to check whether a sensit
 colref check --orm rails --model User --field ssn
 
 # check for serializer declarations
-grep -rn "as_json\|to_json\|attributes.*ssn" app/
+grep -rn -E "as_json|to_json|attributes.*ssn" app/
 ```
 
 If colref finds accesses and a serializer declaration includes the field name, investigate whether that output is exposed externally.
@@ -93,7 +102,7 @@ New to a codebase and want to understand how a column is used?
 colref check --orm django --model Article --field status
 ```
 
-Returns every place `status` is read or written, with file and line number. Faster than searching, and without the noise.
+Returns every place `status` is referenced, with file and line number. Faster than searching, and without the noise.
 
 ### Blast radius estimation
 
