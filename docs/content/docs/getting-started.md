@@ -129,6 +129,10 @@ References found for Account.memorial
   app/services/delete_account_service.rb:231                @account.memorial
 ```
 
+{{< hint warning >}}
+**No references found ≠ safe to delete.** Always verify manually — dynamic references such as `getattr(obj, var)` are out of scope.
+{{< /hint >}}
+
 ## Next steps
 
 - [Usage]({{< relref "usage/_index" >}}) — all flags, ORM-specific behavior

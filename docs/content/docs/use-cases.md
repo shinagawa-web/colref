@@ -129,8 +129,12 @@ This creates an asymmetry:
 | References found | The field is definitely used | Yes — block deletion, CI fail |
 | No references found | Not found by the scanner | No — candidate only, requires human verification |
 
+{{< hint note >}}
 **"References found" is a hard signal.** You can use it to block a CI pipeline with confidence.
+{{< /hint >}}
 
+{{< hint warning >}}
 **"No references found" is a lower bound.** Dynamic access, templates, and other unscanned patterns may still reference the column. Treat zero results as a starting point for human review, not as proof the column is unused.
+{{< /hint >}}
 
 This asymmetry shapes what you should automate. Blocking on evidence is safe. Triggering deletion on absence of evidence is not.
