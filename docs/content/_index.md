@@ -30,5 +30,6 @@ No references found for User.email
 
 → [Getting started]({{< relref "docs/getting-started" >}}) — installation and first run  
 → [Usage]({{< relref "docs/usage/_index" >}}) — flags reference and ORM-specific behavior  
+→ [Use cases]({{< relref "docs/use-cases" >}}) — schema cleanup, CI integration, audits, and more  
 → [How it works]({{< relref "docs/how-it-works" >}}) — AST parsing and schema extraction  
 → [Detection patterns]({{< relref "docs/detection-patterns" >}}) — what is and isn't detected  
