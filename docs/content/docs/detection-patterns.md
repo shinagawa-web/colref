@@ -222,6 +222,23 @@ The field name appears as a string element inside the `update_fields` list passe
 </details>
 
 <details>
+<summary>ActiveRecord — bulk write (Rails 6+)</summary>
+
+The field name appears as a hash key. The first positional argument may be a single hash (for `insert`, `insert!`, `upsert`) or an array of hashes (for the `_all` variants). Bang variants are treated identically to their non-bang counterparts.
+
+| Method | Example | Result |
+|--------|---------|--------|
+| `insert` | `Article.insert({title: "a"})` | ✅ `[string]` |
+| `insert!` | `Article.insert!({title: "a"})` | ✅ `[string]` |
+| `insert_all` | `Article.insert_all([{title: "a"}, ...])` | ✅ `[string]` |
+| `insert_all!` | `Article.insert_all!([{title: "a"}])` | ✅ `[string]` |
+| `upsert` | `Article.upsert({title: "a"})` | ✅ `[string]` |
+| `upsert_all` | `Article.upsert_all([{title: "a"}, ...])` | ✅ `[string]` |
+| Variable argument | `Article.insert_all(records)` | ❌ out of scope — hash keys not statically visible |
+
+</details>
+
+<details>
 <summary>ActiveRecord — instance update</summary>
 
 | Method | Example | Result |

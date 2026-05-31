@@ -3057,3 +3057,127 @@ func TestScanRubyStringRefs_Send_SymbolNotFirst_NotDetected(t *testing.T) {
 		t.Errorf("want 0 refs when symbol is not first arg, got %d: %v", len(refs), refs)
 	}
 }
+
+// --- Rails 6+ bulk write tests ---
+
+func TestScanRubyStringRefs_Insert_SingleHash(t *testing.T) {
+	dir := t.TempDir()
+	writeFile(t, dir, "app.rb", `Article.insert({title: "a", slug: "b"})`)
+
+	refs, _, err := ScanRubyStringRefs(dir, "title")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(refs) != 1 {
+		t.Fatalf("want 1 ref, got %d: %v", len(refs), refs)
+	}
+	if !strings.HasPrefix(refs[0].Text, "[string] ") {
+		t.Errorf("want [string] prefix, got %q", refs[0].Text)
+	}
+}
+
+func TestScanRubyStringRefs_InsertBang_SingleHash(t *testing.T) {
+	dir := t.TempDir()
+	writeFile(t, dir, "app.rb", `Article.insert!({title: "a"})`)
+
+	refs, _, err := ScanRubyStringRefs(dir, "title")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(refs) != 1 {
+		t.Fatalf("want 1 ref, got %d: %v", len(refs), refs)
+	}
+}
+
+func TestScanRubyStringRefs_InsertAll_ArrayOfHashes(t *testing.T) {
+	dir := t.TempDir()
+	// Single line: dedupeByLine collapses both hashes to one ref.
+	writeFile(t, dir, "app.rb", `Article.insert_all([{title: "a"}, {title: "b"}])`)
+
+	refs, _, err := ScanRubyStringRefs(dir, "title")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(refs) != 1 {
+		t.Fatalf("want 1 ref (deduped by line), got %d: %v", len(refs), refs)
+	}
+}
+
+func TestScanRubyStringRefs_InsertAll_MultiLine(t *testing.T) {
+	dir := t.TempDir()
+	writeFile(t, dir, "app.rb", "Article.insert_all([\n  {title: \"a\"},\n  {title: \"b\"},\n])")
+
+	refs, _, err := ScanRubyStringRefs(dir, "title")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(refs) != 2 {
+		t.Fatalf("want 2 refs for multi-line array, got %d: %v", len(refs), refs)
+	}
+}
+
+func TestScanRubyStringRefs_InsertAllBang_ArrayOfHashes(t *testing.T) {
+	dir := t.TempDir()
+	writeFile(t, dir, "app.rb", `Article.insert_all!([{title: "a"}])`)
+
+	refs, _, err := ScanRubyStringRefs(dir, "title")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(refs) != 1 {
+		t.Fatalf("want 1 ref, got %d: %v", len(refs), refs)
+	}
+}
+
+func TestScanRubyStringRefs_Upsert_SingleHash(t *testing.T) {
+	dir := t.TempDir()
+	writeFile(t, dir, "app.rb", `Article.upsert({title: "a", slug: "b"})`)
+
+	refs, _, err := ScanRubyStringRefs(dir, "title")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(refs) != 1 {
+		t.Fatalf("want 1 ref, got %d: %v", len(refs), refs)
+	}
+}
+
+func TestScanRubyStringRefs_UpsertAll_ArrayOfHashes(t *testing.T) {
+	dir := t.TempDir()
+	// Single line: dedupeByLine collapses both hashes to one ref.
+	writeFile(t, dir, "app.rb", `Article.upsert_all([{title: "a"}, {title: "b"}])`)
+
+	refs, _, err := ScanRubyStringRefs(dir, "title")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(refs) != 1 {
+		t.Fatalf("want 1 ref (deduped by line), got %d: %v", len(refs), refs)
+	}
+}
+
+func TestScanRubyStringRefs_InsertAll_WrongField_NotDetected(t *testing.T) {
+	dir := t.TempDir()
+	writeFile(t, dir, "app.rb", `Article.insert_all([{slug: "a"}])`)
+
+	refs, _, err := ScanRubyStringRefs(dir, "title")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(refs) != 0 {
+		t.Errorf("want 0 refs for wrong field, got %d: %v", len(refs), refs)
+	}
+}
+
+func TestScanRubyStringRefs_InsertAll_NonHashArg_NotDetected(t *testing.T) {
+	dir := t.TempDir()
+	writeFile(t, dir, "app.rb", `Article.insert_all(records)`)
+
+	refs, _, err := ScanRubyStringRefs(dir, "title")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(refs) != 0 {
+		t.Errorf("want 0 refs for variable arg, got %d: %v", len(refs), refs)
+	}
+}

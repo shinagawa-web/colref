@@ -18,42 +18,48 @@ References found for Article.title
   references.rb:30          [string] a = Article.create(title: value)                      # create
   references.rb:31          [string] a = Article.find_or_create_by(title: value)           # find_or_create_by
   references.rb:32          [string] a = Article.find_or_initialize_by(title: value)       # find_or_initialize_by
-  references.rb:35          [string] article.update(title: value)                          # update
-  references.rb:36          [string] article.assign_attributes(title: value)               # assign_attributes
-  references.rb:37          [string] article.update_column(:title, value)                  # update_column symbol
-  references.rb:38          [string] article.update_columns(title: value)                  # update_columns hash
-  references.rb:41          [string] Article.where(title: value)                           # where hash
-  references.rb:42          [sql ref] Article.where("title = ?", value)                     # where string
-  references.rb:43          [string] Article.where.not(title: value)                       # where.not
-  references.rb:44          [string] Article.find_by(title: value)                         # find_by
-  references.rb:45          [string] Article.exists?(title: value)                         # exists?
-  references.rb:46          [string] Article.order(:title)                                 # order symbol
-  references.rb:47          [string] Article.order(title: :desc)                           # order hash
-  references.rb:48          [sql ref] Article.order("title ASC")                            # order string
-  references.rb:49          [string] Article.pluck(:title)                                 # pluck symbol
-  references.rb:50          [string] Article.pluck("title")                                # pluck string
-  references.rb:51          [string] Article.select(:title)                                # select symbol
-  references.rb:52          [sql ref] Article.select("title, slug")                         # select string
-  references.rb:53          [string] Article.group(:title)                                 # group symbol
-  references.rb:54          [string] Article.pick(:title)                                  # pick
-  references.rb:55          [string] Article.reorder(:title)                               # reorder
-  references.rb:56          [string] Article.update_all(title: value)                      # update_all
-  references.rb:59          [string] Article.minimum(:title)                               # minimum
-  references.rb:60          [string] Article.maximum(:title)                               # maximum
-  references.rb:61          [string] Article.sum(:title)                                   # sum
-  references.rb:62          [string] Article.average(:title)                               # average
-  references.rb:63          [string] Article.count(:title)                                 # count (column form)
-  references.rb:64          [string] Article.calculate(:sum, :title)                       # calculate symbol
-  references.rb:65          [string] Article.calculate(:sum, "title")                      # calculate string
-  references.rb:68          [string] t = Article.arel_table[:title]                        # table subscript
-  references.rb:69          [string] Article.arel_table[:title].eq(value)                  # arel condition
-  references.rb:70          [string] scope :titled, ->(v) { where(arel_table[:title].eq(v)) }  # implicit self
-  references.rb:78          [string] article.slice(:title, :slug)                          # slice symbols
-  references.rb:79          [string] article.as_json(only: [:title])                       # as_json only:
-  references.rb:80          [string] article.as_json(except: [:title])                     # as_json except:
-  references.rb:81          [string] article.to_json(only: [:title])                       # to_json only:
-  references.rb:82          [string] article.to_xml(only: [:title])                        # to_xml only:
-  references.rb:91          [sql ref] Article.find_by_sql("SELECT title FROM articles WHERE title = ?", value)    # find_by_sql string
-  references.rb:92          [sql ref] connection.execute("UPDATE articles SET title = ?", value)                  # execute string
-  references.rb:93          [sql ref] connection.select_all("SELECT title, slug FROM articles")                   # select_all string
-  references.rb:94          [sql ref] Article.find_by_sql(<<~SQL)                                                  # find_by_sql heredoc
+  references.rb:35          [string] Article.insert({title: "a", slug: "b"})               # insert single hash
+  references.rb:36          [string] Article.insert!({title: "a"})                         # insert! single hash
+  references.rb:37          [string] Article.insert_all([{title: "a"}, {title: "b"}])      # insert_all array
+  references.rb:38          [string] Article.insert_all!([{title: "a"}])                   # insert_all! array
+  references.rb:39          [string] Article.upsert({title: "a", slug: "b"})               # upsert single hash
+  references.rb:40          [string] Article.upsert_all([{title: "a"}, {title: "b"}])      # upsert_all array
+  references.rb:43          [string] article.update(title: value)                          # update
+  references.rb:44          [string] article.assign_attributes(title: value)               # assign_attributes
+  references.rb:45          [string] article.update_column(:title, value)                  # update_column symbol
+  references.rb:46          [string] article.update_columns(title: value)                  # update_columns hash
+  references.rb:49          [string] Article.where(title: value)                           # where hash
+  references.rb:50          [sql ref] Article.where("title = ?", value)                     # where string
+  references.rb:51          [string] Article.where.not(title: value)                       # where.not
+  references.rb:52          [string] Article.find_by(title: value)                         # find_by
+  references.rb:53          [string] Article.exists?(title: value)                         # exists?
+  references.rb:54          [string] Article.order(:title)                                 # order symbol
+  references.rb:55          [string] Article.order(title: :desc)                           # order hash
+  references.rb:56          [sql ref] Article.order("title ASC")                            # order string
+  references.rb:57          [string] Article.pluck(:title)                                 # pluck symbol
+  references.rb:58          [string] Article.pluck("title")                                # pluck string
+  references.rb:59          [string] Article.select(:title)                                # select symbol
+  references.rb:60          [sql ref] Article.select("title, slug")                         # select string
+  references.rb:61          [string] Article.group(:title)                                 # group symbol
+  references.rb:62          [string] Article.pick(:title)                                  # pick
+  references.rb:63          [string] Article.reorder(:title)                               # reorder
+  references.rb:64          [string] Article.update_all(title: value)                      # update_all
+  references.rb:67          [string] Article.minimum(:title)                               # minimum
+  references.rb:68          [string] Article.maximum(:title)                               # maximum
+  references.rb:69          [string] Article.sum(:title)                                   # sum
+  references.rb:70          [string] Article.average(:title)                               # average
+  references.rb:71          [string] Article.count(:title)                                 # count (column form)
+  references.rb:72          [string] Article.calculate(:sum, :title)                       # calculate symbol
+  references.rb:73          [string] Article.calculate(:sum, "title")                      # calculate string
+  references.rb:76          [string] t = Article.arel_table[:title]                        # table subscript
+  references.rb:77          [string] Article.arel_table[:title].eq(value)                  # arel condition
+  references.rb:78          [string] scope :titled, ->(v) { where(arel_table[:title].eq(v)) }  # implicit self
+  references.rb:86          [string] article.slice(:title, :slug)                          # slice symbols
+  references.rb:87          [string] article.as_json(only: [:title])                       # as_json only:
+  references.rb:88          [string] article.as_json(except: [:title])                     # as_json except:
+  references.rb:89          [string] article.to_json(only: [:title])                       # to_json only:
+  references.rb:90          [string] article.to_xml(only: [:title])                        # to_xml only:
+  references.rb:99          [sql ref] Article.find_by_sql("SELECT title FROM articles WHERE title = ?", value)    # find_by_sql string
+  references.rb:100         [sql ref] connection.execute("UPDATE articles SET title = ?", value)                  # execute string
+  references.rb:101         [sql ref] connection.select_all("SELECT title, slug FROM articles")                   # select_all string
+  references.rb:102         [sql ref] Article.find_by_sql(<<~SQL)                                                  # find_by_sql heredoc

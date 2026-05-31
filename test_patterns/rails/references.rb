@@ -31,6 +31,14 @@ if false
   a = Article.find_or_create_by(title: value)           # find_or_create_by
   a = Article.find_or_initialize_by(title: value)       # find_or_initialize_by
 
+  # ── ActiveRecord — bulk write (Rails 6+) ─────────────────────────────────────
+  Article.insert({title: "a", slug: "b"})               # insert single hash
+  Article.insert!({title: "a"})                         # insert! single hash
+  Article.insert_all([{title: "a"}, {title: "b"}])      # insert_all array
+  Article.insert_all!([{title: "a"}])                   # insert_all! array
+  Article.upsert({title: "a", slug: "b"})               # upsert single hash
+  Article.upsert_all([{title: "a"}, {title: "b"}])      # upsert_all array
+
   # ── ActiveRecord — instance update ───────────────────────────────────────────
   article.update(title: value)                          # update
   article.assign_attributes(title: value)               # assign_attributes

@@ -53,6 +53,14 @@ var rubyHashKeyArgMethods = map[string]bool{
 	"find_by": true, "exists?": true,
 }
 
+// rubyBulkWriteMethods are Rails 6+ bulk write methods. Their first positional
+// argument is either a hash ({col: val}) or an array of hashes ([{col: val}]).
+var rubyBulkWriteMethods = map[string]bool{
+	"insert": true, "insert!": true,
+	"insert_all": true, "insert_all!": true,
+	"upsert": true, "upsert_all": true,
+}
+
 // rubySqlMethods are Ruby/ActiveRecord methods whose first positional string
 // argument is raw SQL.
 var rubySqlMethods = map[string]bool{
@@ -197,6 +205,26 @@ func walkNodeRubyStringRefsInner(node *sitter.Node, src []byte, lines [][]byte, 
 				// Only match when the first positional argument is a symbol literal.
 				if t == "simple_symbol" && rubySymbolName(child, src) == fieldName {
 					addRubySymbolRef(child, lines, file, refs)
+				}
+				break
+			}
+			break
+		}
+
+		if rubyBulkWriteMethods[methodName] {
+			for i := 0; i < int(args.ChildCount()); i++ {
+				child := args.Child(i)
+				switch child.Type() {
+				case "(", ")", ",":
+					continue
+				case "hash":
+					scanRubyHashPairs(child, src, lines, fieldName, file, refs)
+				case "array":
+					for j := 0; j < int(child.ChildCount()); j++ {
+						if elem := child.Child(j); elem.Type() == "hash" {
+							scanRubyHashPairs(elem, src, lines, fieldName, file, refs)
+						}
+					}
 				}
 				break
 			}
@@ -390,6 +418,21 @@ func rubyContainsField(s, fieldName string) bool {
 
 func isWordChar(c byte) bool {
 	return (c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z') || (c >= '0' && c <= '9') || c == '_'
+}
+
+// scanRubyHashPairs scans pair children of a hash node and emits a [string]
+// reference for each hash_key_symbol key that matches fieldName.
+func scanRubyHashPairs(hash *sitter.Node, src []byte, lines [][]byte, fieldName, file string, refs *[]Reference) {
+	for i := 0; i < int(hash.ChildCount()); i++ {
+		pair := hash.Child(i)
+		if pair.Type() != "pair" {
+			continue
+		}
+		key := pair.ChildByFieldName("key")
+		if key != nil && key.Type() == "hash_key_symbol" && key.Content(src) == fieldName {
+			addRubyStringRef(key, lines, file, refs)
+		}
+	}
 }
 
 // addRubyStringRef appends a [string]-labeled Reference at the node's source row.
