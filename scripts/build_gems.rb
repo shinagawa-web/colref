@@ -80,7 +80,7 @@ def build_gem(raw_version, platform, artifacts_dir, out_dir)
       s.platform              = platform[:gem_platform]
       s.summary               = "Check whether a database column is still referenced in your codebase before you delete it"
       s.description           = s.summary
-      s.homepage              = "https://github.com/shinagawa-web/colref"
+      s.homepage              = "https://shinagawa-web.github.io/colref/"
       s.license               = "MIT"
       s.authors               = ["Kazutomo Deguchi"]
       s.bindir                = "exe"
