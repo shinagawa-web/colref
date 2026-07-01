@@ -1,8 +1,10 @@
 package main
 
 import (
+	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
 	"io/fs"
 	"os"
 	"path/filepath"
@@ -16,9 +18,10 @@ import (
 )
 
 var (
-	flagModel string
-	flagField string
-	flagOrm   string
+	flagModel  string
+	flagField  string
+	flagOrm    string
+	flagFormat string
 )
 
 var checkCmd = &cobra.Command{
@@ -30,6 +33,9 @@ var checkCmd = &cobra.Command{
 		if len(args) == 1 {
 			dir = args[0]
 		}
+		if err := validateFormat(flagFormat); err != nil {
+			return err
+		}
 		return runCheck(dir, flagModel, flagField, flagOrm)
 	},
 }
@@ -38,6 +44,7 @@ func init() {
 	checkCmd.Flags().StringVar(&flagModel, "model", "", "Model name (e.g. User)")
 	checkCmd.Flags().StringVar(&flagField, "field", "", "Field name (e.g. email)")
 	checkCmd.Flags().StringVar(&flagOrm, "orm", "", "ORM type: django, rails")
+	checkCmd.Flags().StringVar(&flagFormat, "format", "text", "Output format: text, json")
 	_ = checkCmd.MarkFlagRequired("model")
 	_ = checkCmd.MarkFlagRequired("field")
 	_ = checkCmd.MarkFlagRequired("orm")
@@ -89,7 +96,7 @@ func runCheckRails(dir, modelName, fieldName string) error {
 		if err != nil {
 			return fmt.Errorf("parse %s: %w", schemaFile, err)
 		}
-		return runCheckFields(dir, modelName, fieldName, fields, refs.ScanRuby)
+		return runCheckFields(dir, modelName, fieldName, "rails", fields, refs.ScanRuby)
 	}
 	if !errors.Is(err, os.ErrNotExist) {
 		return fmt.Errorf("read %s: %w", schemaFile, err)
@@ -103,7 +110,7 @@ func runCheckRails(dir, modelName, fieldName string) error {
 		if err != nil {
 			return fmt.Errorf("parse %s: %w", structureFile, err)
 		}
-		return runCheckFields(dir, modelName, fieldName, fields, refs.ScanRuby)
+		return runCheckFields(dir, modelName, fieldName, "rails", fields, refs.ScanRuby)
 	}
 	if !errors.Is(err, os.ErrNotExist) {
 		return fmt.Errorf("read %s: %w", structureFile, err)
@@ -119,7 +126,7 @@ func runCheckRailsMigrations(dir, modelName, fieldName string) error {
 	if err != nil {
 		return fmt.Errorf("parse migrations from %s: %w", migrateDir, err)
 	}
-	return runCheckFields(dir, modelName, fieldName, fields, refs.ScanRuby)
+	return runCheckFields(dir, modelName, fieldName, "rails", fields, refs.ScanRuby)
 }
 
 func runCheckDjango(dir, modelName, fieldName string) error {
@@ -190,10 +197,10 @@ func runCheckDjango(dir, modelName, fieldName string) error {
 		allFields = append(allFields, pf.fields...)
 	}
 
-	return runCheckFields(dir, modelName, fieldName, allFields, refs.ScanDjango)
+	return runCheckFields(dir, modelName, fieldName, "django", allFields, refs.ScanDjango)
 }
 
-func runCheckFields(dir, modelName, fieldName string, allFields []schema.Field, scan func(string, string) ([]refs.Reference, int, error)) error {
+func runCheckFields(dir, modelName, fieldName, ormName string, allFields []schema.Field, scan func(string, string) ([]refs.Reference, int, error)) error {
 	fieldNames := fieldsForModel(allFields, modelName)
 	if len(fieldNames) == 0 {
 		known := knownModels(allFields)
@@ -208,26 +215,83 @@ func runCheckFields(dir, modelName, fieldName string, allFields []schema.Field, 
 			fieldName, modelName, strings.Join(fieldNames, ", "))
 	}
 
-	return runScan(dir, modelName, fieldName, scan)
+	return runScan(dir, modelName, fieldName, ormName, scan)
 }
 
-func runScan(dir, modelName, fieldName string, scan func(string, string) ([]refs.Reference, int, error)) error {
-	refs, count, err := scan(dir, fieldName)
+func runScan(dir, modelName, fieldName, ormName string, scan func(string, string) ([]refs.Reference, int, error)) error {
+	references, count, err := scan(dir, fieldName)
 	if err != nil {
 		return err
 	}
 
+	if flagFormat == "json" {
+		result := buildResult(modelName, fieldName, ormName, count, references)
+		return printJSON(os.Stdout, result)
+	}
+
 	fmt.Printf("Scanning %d files...\n\n", count)
 
-	if len(refs) == 0 {
+	if len(references) == 0 {
 		fmt.Printf("No references found for %s.%s\n\n", modelName, fieldName)
 		fmt.Printf("  Verify manually before deleting.\n")
 		return nil
 	}
 
 	fmt.Printf("References found for %s.%s\n\n", modelName, fieldName)
-	printRefs(refs)
+	printRefs(references)
 	return nil
+}
+
+// checkResult is the machine-readable form of a scan, emitted with --format json.
+type checkResult struct {
+	Model          string        `json:"model"`
+	Field          string        `json:"field"`
+	Orm            string        `json:"orm"`
+	FilesScanned   int           `json:"files_scanned"`
+	ReferenceCount int           `json:"reference_count"`
+	References     []checkRefOut `json:"references"`
+}
+
+type checkRefOut struct {
+	File string `json:"file"`
+	Line int    `json:"line"`
+	Text string `json:"text"`
+}
+
+// buildResult assembles the JSON result. It is pure (no I/O) so tests can assert
+// on the structure directly without capturing stdout.
+func buildResult(modelName, fieldName, ormName string, filesScanned int, references []orm.Reference) checkResult {
+	out := make([]checkRefOut, 0, len(references))
+	for _, r := range references {
+		out = append(out, checkRefOut{File: r.File, Line: r.Line, Text: r.Text})
+	}
+	return checkResult{
+		Model:          modelName,
+		Field:          fieldName,
+		Orm:            ormName,
+		FilesScanned:   filesScanned,
+		ReferenceCount: len(out),
+		References:     out,
+	}
+}
+
+func printJSON(w io.Writer, result checkResult) error {
+	enc := json.NewEncoder(w)
+	// The Text field holds source snippets (Ruby lambdas `->`, safe-nav `&.`, ERB
+	// `<%= %>`). Disable HTML escaping so those stay readable on the wire for tools
+	// consuming the JSON, rather than being emitted as > / &.
+	enc.SetEscapeHTML(false)
+	enc.SetIndent("", "  ")
+	return enc.Encode(result)
+}
+
+func validateFormat(format string) error {
+	switch format {
+	case "text", "json":
+		return nil
+	default:
+		return fmt.Errorf("unknown --format %q: supported values are text, json", format)
+	}
 }
 
 func printRefs(refs []orm.Reference) {

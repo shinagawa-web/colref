@@ -86,6 +86,7 @@ colref check --orm <orm> --model <Model> --field <field> [path]
 | `--orm` | ORM type: `django`, `rails` (required) |
 | `--model` | Model name to look up (required) |
 | `--field` | Field name to search for (required) |
+| `--format` | Output format: `text` (default), `json` |
 
 Example:
 
@@ -98,6 +99,27 @@ References found for Page.seo_title
   wagtail/admin/tests/pages/test_create_page.py:1867   page.seo_title
   wagtail/admin/tests/pages/test_create_page.py:1892   page.seo_title
 ```
+
+### JSON output
+
+Use `--format json` to emit a structured result you can pipe into other tools. In this mode stdout is pure JSON (no `Scanning...` preamble), so it is safe to pipe:
+
+```
+$ colref check --orm django --model Page --field seo_title --format json
+{
+  "model": "Page",
+  "field": "seo_title",
+  "orm": "django",
+  "files_scanned": 932,
+  "reference_count": 2,
+  "references": [
+    { "file": "wagtail/admin/tests/pages/test_create_page.py", "line": 1867, "text": "page.seo_title" },
+    { "file": "wagtail/admin/tests/pages/test_create_page.py", "line": 1892, "text": "page.seo_title" }
+  ]
+}
+```
+
+When nothing is found, `reference_count` is `0` and `references` is an empty array `[]`.
 
 For ORM-specific behavior and more examples, see [Django](https://shinagawa-web.github.io/colref/docs/usage/django/) and [Rails](https://shinagawa-web.github.io/colref/docs/usage/rails/).
 

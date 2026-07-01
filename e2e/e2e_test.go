@@ -3,6 +3,7 @@ package e2e
 import (
 	"bufio"
 	"bytes"
+	"encoding/json"
 	"flag"
 	"fmt"
 	"os"
@@ -141,6 +142,69 @@ func TestE2E_Rails(t *testing.T) {
 		}
 		assertContains(t, out, "References found for User.email")
 		assertContains(t, out, "app/user.rb")
+	})
+}
+
+func TestE2E_JSONOutput(t *testing.T) {
+	fixture := "fixtures/django"
+
+	t.Run("RefsFound", func(t *testing.T) {
+		out, err := run(t, "check", "--orm", "django", "--model", "User", "--field", "email", "--format", "json", fixture)
+		if err != nil {
+			t.Fatalf("unexpected error: %v\noutput:\n%s", err, out)
+		}
+		// stdout must be pure, parseable JSON — no "Scanning..." preamble.
+		assertNotContains(t, out, "Scanning")
+		assertNotContains(t, out, "References found")
+
+		var result struct {
+			Model          string `json:"model"`
+			Field          string `json:"field"`
+			Orm            string `json:"orm"`
+			FilesScanned   int    `json:"files_scanned"`
+			ReferenceCount int    `json:"reference_count"`
+			References     []struct {
+				File string `json:"file"`
+				Line int    `json:"line"`
+				Text string `json:"text"`
+			} `json:"references"`
+		}
+		if err := json.Unmarshal(out, &result); err != nil {
+			t.Fatalf("output is not valid JSON: %v\noutput:\n%s", err, out)
+		}
+		if result.Model != "User" || result.Field != "email" || result.Orm != "django" {
+			t.Errorf("unexpected identity fields: %+v", result)
+		}
+		if result.ReferenceCount == 0 || result.ReferenceCount != len(result.References) {
+			t.Errorf("ReferenceCount = %d, len(References) = %d", result.ReferenceCount, len(result.References))
+		}
+	})
+
+	t.Run("NoRefs", func(t *testing.T) {
+		out, err := run(t, "check", "--orm", "django", "--model", "User", "--field", "name", "--format", "json", fixture)
+		if err != nil {
+			t.Fatalf("unexpected error: %v\noutput:\n%s", err, out)
+		}
+		var result struct {
+			ReferenceCount int               `json:"reference_count"`
+			References     []json.RawMessage `json:"references"`
+		}
+		if err := json.Unmarshal(out, &result); err != nil {
+			t.Fatalf("output is not valid JSON: %v\noutput:\n%s", err, out)
+		}
+		if result.ReferenceCount != 0 {
+			t.Errorf("ReferenceCount = %d, want 0", result.ReferenceCount)
+		}
+		// references must be [] (present), not null/omitted.
+		assertContains(t, out, `"references": []`)
+	})
+
+	t.Run("InvalidFormat", func(t *testing.T) {
+		out, err := run(t, "check", "--orm", "django", "--model", "User", "--field", "email", "--format", "xml", fixture)
+		if err == nil {
+			t.Fatal("expected non-zero exit for unknown format")
+		}
+		assertContains(t, out, `unknown --format "xml"`)
 	})
 }
 
