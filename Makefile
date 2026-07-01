@@ -1,4 +1,4 @@
-.PHONY: build test test-e2e build-e2e clean-e2e test-coverage check-coverage bench bench-compare clean install static-lint lint-fix install-hooks mod-tidy help
+.PHONY: build test test-e2e build-e2e clean-e2e test-coverage check-coverage bench bench-compare clean install static-lint lint-fix install-hooks mod-tidy demo help
 
 # Default target
 .DEFAULT_GOAL := help
@@ -99,6 +99,9 @@ install-hooks: ## Install git hooks (pre-push)
 mod-tidy: ## Tidy go.mod and go.sum
 	@echo "Tidying go.mod..."
 	$(GOMOD) tidy
+
+demo: ## Record the README demo GIF with VHS (requires: brew install vhs)
+	@bash scripts/record-demo.sh
 
 help: ## Show this help message
 	@grep -E '^[a-zA-Z_-]+:.*?## .*$$' $(MAKEFILE_LIST) | \
