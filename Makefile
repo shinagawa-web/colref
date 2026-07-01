@@ -100,7 +100,7 @@ mod-tidy: ## Tidy go.mod and go.sum
 	@echo "Tidying go.mod..."
 	$(GOMOD) tidy
 
-demo: ## Record the README demo GIF with VHS (requires: brew install vhs)
+demo: ## Record the README demo GIF with VHS (needs vhs, e.g. brew install vhs)
 	@bash scripts/record-demo.sh
 
 help: ## Show this help message
