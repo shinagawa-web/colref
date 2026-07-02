@@ -279,7 +279,8 @@ func printJSON(w io.Writer, result checkResult) error {
 	enc := json.NewEncoder(w)
 	// The Text field holds source snippets (Ruby lambdas `->`, safe-nav `&.`, ERB
 	// `<%= %>`). Disable HTML escaping so those stay readable on the wire for tools
-	// consuming the JSON, rather than being emitted as > / &.
+	// consuming the JSON, rather than as the Unicode escapes `\u003c` / `\u003e` / `\u0026`
+	// that encoding/json emits for <, >, and & by default.
 	enc.SetEscapeHTML(false)
 	enc.SetIndent("", "  ")
 	return enc.Encode(result)

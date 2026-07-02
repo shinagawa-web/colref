@@ -862,7 +862,7 @@ func TestPrintJSON_DoesNotHTMLEscapeSnippets(t *testing.T) {
 		t.Fatalf("printJSON: %v", err)
 	}
 	got := buf.String()
-	// If HTML escaping were on, these would appear as -> and &.title,
+	// If HTML escaping were on, these would appear as -\u003e and \u0026.title,
 	// so their verbatim presence proves SetEscapeHTML(false) took effect.
 	for _, want := range []string{"->", "&.title"} {
 		if !strings.Contains(got, want) {
