@@ -1,6 +1,8 @@
 package main
 
 import (
+	"bytes"
+	"encoding/json"
 	"fmt"
 	"io"
 	"os"
@@ -8,6 +10,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/shinagawa-web/colref/internal/orm"
 	"github.com/shinagawa-web/colref/internal/schema"
 )
 
@@ -795,5 +798,125 @@ func TestCheckCmd_RunE_NoArg(t *testing.T) {
 	})
 	if err := rootCmd.Execute(); err != nil {
 		t.Fatalf("unexpected error: %v", err)
+	}
+}
+
+func TestValidateFormat(t *testing.T) {
+	for _, ok := range []string{"text", "json"} {
+		if err := validateFormat(ok); err != nil {
+			t.Errorf("validateFormat(%q) = %v, want nil", ok, err)
+		}
+	}
+	if err := validateFormat("xml"); err == nil {
+		t.Error("validateFormat(\"xml\") = nil, want error")
+	}
+}
+
+func TestBuildResult(t *testing.T) {
+	refs := []orm.Reference{
+		{File: "app/models/user.rb", Line: 12, Text: "validates :email"},
+		{File: "app/mailers/user_mailer.rb", Line: 8, Text: "user.email"},
+	}
+	got := buildResult("User", "email", "rails", 42, refs)
+
+	if got.Model != "User" || got.Field != "email" || got.Orm != "rails" {
+		t.Errorf("identity fields wrong: %+v", got)
+	}
+	if got.FilesScanned != 42 {
+		t.Errorf("FilesScanned = %d, want 42", got.FilesScanned)
+	}
+	if got.ReferenceCount != len(got.References) || got.ReferenceCount != 2 {
+		t.Errorf("ReferenceCount = %d, len(References) = %d, want 2", got.ReferenceCount, len(got.References))
+	}
+	if got.References[0] != (checkRefOut{File: "app/models/user.rb", Line: 12, Text: "validates :email"}) {
+		t.Errorf("References[0] = %+v", got.References[0])
+	}
+}
+
+func TestBuildResult_EmptyReferencesEncodesAsArray(t *testing.T) {
+	got := buildResult("User", "email", "django", 5, nil)
+	if got.ReferenceCount != 0 {
+		t.Errorf("ReferenceCount = %d, want 0", got.ReferenceCount)
+	}
+	if got.References == nil {
+		t.Fatal("References is nil; must be a non-nil empty slice so JSON emits [] not null")
+	}
+
+	var buf bytes.Buffer
+	if err := printJSON(&buf, got); err != nil {
+		t.Fatalf("printJSON: %v", err)
+	}
+	if !strings.Contains(buf.String(), `"references": []`) {
+		t.Errorf("empty references did not encode as []:\n%s", buf.String())
+	}
+}
+
+func TestPrintJSON_DoesNotHTMLEscapeSnippets(t *testing.T) {
+	// Source snippets contain characters json would HTML-escape by default
+	// (< > &). They must survive verbatim so downstream tools see real code.
+	result := buildResult("Article", "title", "rails", 1, []orm.Reference{
+		{File: "app/models/article.rb", Line: 7, Text: "scope :titled, ->(t) { where(title: t) } # article&.title"},
+	})
+	var buf bytes.Buffer
+	if err := printJSON(&buf, result); err != nil {
+		t.Fatalf("printJSON: %v", err)
+	}
+	got := buf.String()
+	// If HTML escaping were on, these would appear as -\u003e and \u0026.title,
+	// so their verbatim presence proves SetEscapeHTML(false) took effect.
+	for _, want := range []string{"->", "&.title"} {
+		if !strings.Contains(got, want) {
+			t.Errorf("output missing %q (HTML-escaped?):\n%s", want, got)
+		}
+	}
+}
+
+func TestCheckCmd_JSONOutput(t *testing.T) {
+	dir := setupDjangoFixture(t)
+
+	// Flag vars persist across cobra Execute calls in the test binary; reset.
+	t.Cleanup(func() { flagFormat = "text" })
+
+	orig := os.Stdout
+	r, w, err := os.Pipe()
+	if err != nil {
+		t.Fatal(err)
+	}
+	os.Stdout = w
+	t.Cleanup(func() { os.Stdout = orig })
+
+	rootCmd.SetOut(io.Discard)
+	rootCmd.SetErr(io.Discard)
+	rootCmd.SetArgs([]string{
+		"check", dir,
+		"--model", "User",
+		"--field", "email",
+		"--orm", "django",
+		"--format", "json",
+	})
+	execErr := rootCmd.Execute()
+	_ = w.Close()
+	os.Stdout = orig
+
+	out, err := io.ReadAll(r)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if execErr != nil {
+		t.Fatalf("unexpected error: %v", execErr)
+	}
+
+	var result checkResult
+	if err := json.Unmarshal(out, &result); err != nil {
+		t.Fatalf("stdout is not valid JSON: %v\noutput:\n%s", err, out)
+	}
+	if result.Model != "User" || result.Field != "email" || result.Orm != "django" {
+		t.Errorf("unexpected result identity: %+v", result)
+	}
+	if result.ReferenceCount != len(result.References) {
+		t.Errorf("ReferenceCount = %d but len(References) = %d", result.ReferenceCount, len(result.References))
+	}
+	if result.ReferenceCount == 0 {
+		t.Error("expected at least one reference for User.email")
 	}
 }
