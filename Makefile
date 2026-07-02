@@ -53,10 +53,11 @@ update-golden: build-e2e ## Regenerate golden files for pattern battery tests
 
 check-coverage: ## Run tests with coverage and enforce minimum threshold
 	@echo "Running tests with coverage (threshold: $(COVERAGE_THRESHOLD)%)..."
-	@coverage_file=$$(mktemp); \
+	@set -e; \
+	coverage_file=$$(mktemp); \
 	trap 'rm -f "$$coverage_file"' EXIT; \
 	$(GOTEST) $$(go list ./... | grep -v /e2e) -coverprofile="$$coverage_file"; \
-	total=$$($(GOCMD) tool cover -func="$$coverage_file" | grep '^total' | awk '{print $$3}' | tr -d '%'); \
+	total=$$(awk 'NR>1 { tot+=$$2; if ($$3>0) cov+=$$2 } END { if (tot>0) printf "%.1f", 100*cov/tot; else print "0.0" }' "$$coverage_file"); \
 	echo "Total coverage: $${total}%"; \
 	if ! awk "BEGIN { exit !($$total >= $(COVERAGE_THRESHOLD)) }"; then \
 		echo "FAIL: coverage $${total}% is below threshold $(COVERAGE_THRESHOLD)%"; exit 1; \
