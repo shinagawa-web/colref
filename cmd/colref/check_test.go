@@ -790,8 +790,12 @@ func TestCheckCmd_RunE_InvalidFormat(t *testing.T) {
 		"--orm", "django",
 		"--format", "xml",
 	})
-	if err := rootCmd.Execute(); err == nil {
+	err := rootCmd.Execute()
+	if err == nil {
 		t.Fatal("expected error for invalid --format")
+	}
+	if !strings.Contains(err.Error(), `unknown --format "xml"`) {
+		t.Fatalf("error is not the --format validation failure: %v", err)
 	}
 }
 
