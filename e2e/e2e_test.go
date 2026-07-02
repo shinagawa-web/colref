@@ -206,6 +206,66 @@ func TestE2E_JSONOutput(t *testing.T) {
 		}
 		assertContains(t, out, `unknown --format "xml"`)
 	})
+
+	t.Run("Rails", func(t *testing.T) {
+		// Exercise the Rails scan path (schema.rb + ERB views) through JSON output.
+		out, err := run(t, "check", "--orm", "rails", "--model", "User", "--field", "email", "--format", "json", "fixtures/rails")
+		if err != nil {
+			t.Fatalf("unexpected error: %v\noutput:\n%s", err, out)
+		}
+		assertNotContains(t, out, "Scanning")
+
+		var result struct {
+			Orm            string `json:"orm"`
+			ReferenceCount int    `json:"reference_count"`
+			References     []struct {
+				File string `json:"file"`
+			} `json:"references"`
+		}
+		if err := json.Unmarshal(out, &result); err != nil {
+			t.Fatalf("output is not valid JSON: %v\noutput:\n%s", err, out)
+		}
+		if result.Orm != "rails" {
+			t.Errorf("orm = %q, want \"rails\"", result.Orm)
+		}
+		if result.ReferenceCount != len(result.References) {
+			t.Errorf("ReferenceCount = %d, len(References) = %d", result.ReferenceCount, len(result.References))
+		}
+		// The .erb view references email and must be scanned alongside the .rb file.
+		var sawERB bool
+		for _, r := range result.References {
+			if strings.HasSuffix(r.File, ".erb") {
+				sawERB = true
+			}
+		}
+		if !sawERB {
+			t.Errorf("expected an .erb reference in JSON output\ngot:\n%s", out)
+		}
+	})
+
+	t.Run("HTMLNotEscaped", func(t *testing.T) {
+		// The Text field carries source snippets; HTML escaping is disabled so Ruby
+		// lambdas (->), safe navigation (&.), and ERB (<%= %>) stay readable rather
+		// than being emitted as > / &. The rails pattern battery contains
+		// snippets with exactly these characters.
+		out, err := run(t, "check", "--orm", "rails", "--model", "Article", "--field", "title", "--format", "json", "../test_patterns/rails")
+		if err != nil {
+			t.Fatalf("unexpected error: %v\noutput:\n%s", err, out)
+		}
+		// Must still be valid, parseable JSON.
+		var result struct {
+			References []json.RawMessage `json:"references"`
+		}
+		if err := json.Unmarshal(out, &result); err != nil {
+			t.Fatalf("output is not valid JSON: %v\noutput:\n%s", err, out)
+		}
+		// Raw characters present, Unicode escapes absent.
+		assertContains(t, out, "->(t)")
+		assertContains(t, out, "article&.title")
+		assertNotContains(t, out, `\u003e`) // escaped '>'
+		assertNotContains(t, out, `\u0026`) // escaped '&'
+		assertNotContains(t, out, `\u003c`) // escaped '<'
+	})
 }
 
 func TestE2E_Django_ModelsPackage(t *testing.T) {
