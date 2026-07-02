@@ -72,7 +72,15 @@ func validateColor(mode string) error {
 	}
 }
 
-// fileIsTerminal reports whether f refers to a character device (a terminal).
+// fileIsTerminal reports whether f refers to a character device, used as a
+// dependency-free proxy for "is a terminal".
+//
+// Deliberate tradeoff: dummy character devices such as /dev/null also read as
+// terminals here, so `--color=auto` would emit ANSI codes when stdout is
+// redirected to one. That is harmless — such output is discarded — and the
+// cases that matter are handled correctly: regular files and pipes are not
+// character devices, so color is disabled for `> file` and `| cmd`. A precise
+// TTY check would need golang.org/x/term; we avoid that dependency here.
 func fileIsTerminal(f *os.File) bool {
 	info, err := f.Stat()
 	if err != nil {

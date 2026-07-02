@@ -76,7 +76,9 @@ func TestPalette(t *testing.T) {
 }
 
 func TestFileIsTerminal(t *testing.T) {
-	// /dev/null is a character device, so it reports as a terminal.
+	// /dev/null is a character device, so it reports as a terminal. This is the
+	// documented, deliberate tradeoff of the ModeCharDevice proxy (see
+	// fileIsTerminal) — output to a dummy device is discarded, so it's harmless.
 	devNull, err := os.Open(os.DevNull)
 	if err != nil {
 		t.Fatalf("open %s: %v", os.DevNull, err)

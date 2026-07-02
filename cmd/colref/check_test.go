@@ -932,9 +932,11 @@ func captureStdout(t *testing.T, fn func()) string {
 		t.Fatal(err)
 	}
 	os.Stdout = w
+	// Restore via defer so a t.Fatal (runtime.Goexit) or panic inside fn can't
+	// leave os.Stdout redirected for the rest of the suite.
+	defer func() { os.Stdout = orig }()
 	fn()
 	_ = w.Close()
-	os.Stdout = orig
 	out, err := io.ReadAll(r)
 	if err != nil {
 		t.Fatal(err)
