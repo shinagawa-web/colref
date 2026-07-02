@@ -7,7 +7,6 @@ on:
 
 permissions:
   contents: read
-  checks: write
 
 jobs:
   golangci-lint:
@@ -21,9 +20,7 @@ jobs:
           go-version-file: go.mod
           cache: true
 
-      - uses: reviewdog/action-golangci-lint@c76cceaaab89abe74e649d2e34c6c9adc26662d2 # v2
+      - uses: golangci/golangci-lint-action@ba0d7d2ec06a0ea1cb5fa41b2e4a3ab91d21278a # v9.3.0
         with:
-          github_token: ${{ secrets.GITHUB_TOKEN }}
-          golangci_lint_flags: --config=./.golangci.yml
-          fail_level: error
-          reporter: github-pr-check
+          version: v2.12.2
+          args: --config=./.golangci.yml
