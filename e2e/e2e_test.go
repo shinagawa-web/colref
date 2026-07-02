@@ -268,6 +268,46 @@ func TestE2E_JSONOutput(t *testing.T) {
 	})
 }
 
+func TestE2E_ColorOutput(t *testing.T) {
+	fixture := "fixtures/django"
+	const esc = "\033[" // start of any ANSI SGR sequence
+
+	t.Run("PipedDefaultHasNoColor", func(t *testing.T) {
+		// CombinedOutput pipes stdout (not a TTY), so --color=auto must emit no
+		// escape codes — text output stays clean for downstream tools.
+		out, err := run(t, "check", "--orm", "django", "--model", "User", "--field", "email", fixture)
+		if err != nil {
+			t.Fatalf("unexpected error: %v\noutput:\n%s", err, out)
+		}
+		assertContains(t, out, "References found for User.email")
+		assertNotContains(t, out, esc)
+	})
+
+	t.Run("ColorAlwaysEmitsCodes", func(t *testing.T) {
+		out, err := run(t, "check", "--orm", "django", "--model", "User", "--field", "email", "--color", "always", fixture)
+		if err != nil {
+			t.Fatalf("unexpected error: %v\noutput:\n%s", err, out)
+		}
+		assertContains(t, out, esc)
+	})
+
+	t.Run("ColorNever", func(t *testing.T) {
+		out, err := run(t, "check", "--orm", "django", "--model", "User", "--field", "email", "--color", "never", fixture)
+		if err != nil {
+			t.Fatalf("unexpected error: %v\noutput:\n%s", err, out)
+		}
+		assertNotContains(t, out, esc)
+	})
+
+	t.Run("InvalidColor", func(t *testing.T) {
+		out, err := run(t, "check", "--orm", "django", "--model", "User", "--field", "email", "--color", "rainbow", fixture)
+		if err == nil {
+			t.Fatal("expected non-zero exit for unknown color")
+		}
+		assertContains(t, out, `unknown --color "rainbow"`)
+	})
+}
+
 func TestE2E_Django_ModelsPackage(t *testing.T) {
 	fixture := "fixtures/django-models-pkg"
 
