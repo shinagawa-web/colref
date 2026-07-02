@@ -22,6 +22,7 @@ var (
 	flagField  string
 	flagOrm    string
 	flagFormat string
+	flagColor  string
 )
 
 var checkCmd = &cobra.Command{
@@ -36,6 +37,9 @@ var checkCmd = &cobra.Command{
 		if err := validateFormat(flagFormat); err != nil {
 			return err
 		}
+		if err := validateColor(flagColor); err != nil {
+			return err
+		}
 		return runCheck(dir, flagModel, flagField, flagOrm)
 	},
 }
@@ -45,6 +49,7 @@ func init() {
 	checkCmd.Flags().StringVar(&flagField, "field", "", "Field name (e.g. email)")
 	checkCmd.Flags().StringVar(&flagOrm, "orm", "", "ORM type: django, rails")
 	checkCmd.Flags().StringVar(&flagFormat, "format", "text", "Output format: text, json")
+	checkCmd.Flags().StringVar(&flagColor, "color", "auto", "Colorize output: auto, always, never")
 	_ = checkCmd.MarkFlagRequired("model")
 	_ = checkCmd.MarkFlagRequired("field")
 	_ = checkCmd.MarkFlagRequired("orm")
@@ -229,16 +234,18 @@ func runScan(dir, modelName, fieldName, ormName string, scan func(string, string
 		return printJSON(os.Stdout, result)
 	}
 
+	pal := newPalette()
+
 	fmt.Printf("Scanning %d files...\n\n", count)
 
 	if len(references) == 0 {
-		fmt.Printf("No references found for %s.%s\n\n", modelName, fieldName)
-		fmt.Printf("  Verify manually before deleting.\n")
+		fmt.Printf("%s\n\n", pal.yellow(fmt.Sprintf("No references found for %s.%s", modelName, fieldName)))
+		fmt.Printf("  %s\n", pal.dim("Verify manually before deleting."))
 		return nil
 	}
 
-	fmt.Printf("References found for %s.%s\n\n", modelName, fieldName)
-	printRefs(references)
+	fmt.Printf("%s\n\n", pal.green(fmt.Sprintf("References found for %s.%s", modelName, fieldName)))
+	printRefs(references, pal)
 	return nil
 }
 
@@ -295,7 +302,7 @@ func validateFormat(format string) error {
 	}
 }
 
-func printRefs(refs []orm.Reference) {
+func printRefs(refs []orm.Reference, pal palette) {
 	maxWidth := 0
 	for _, r := range refs {
 		if w := len(fmt.Sprintf("%s:%d", r.File, r.Line)); w > maxWidth {
@@ -303,8 +310,13 @@ func printRefs(refs []orm.Reference) {
 		}
 	}
 	for _, r := range refs {
+		// Width and padding are computed on the plain label so color escape
+		// codes never throw off column alignment. Matched text is left
+		// uncolored so it reads naturally against the colored metadata.
 		label := fmt.Sprintf("%s:%d", r.File, r.Line)
-		fmt.Printf("  %s%s%s\n", label, strings.Repeat(" ", maxWidth-len(label)+3), r.Text)
+		pad := strings.Repeat(" ", maxWidth-len(label)+3)
+		coloredLabel := pal.path(r.File) + pal.line(fmt.Sprintf(":%d", r.Line))
+		fmt.Printf("  %s%s%s\n", coloredLabel, pad, r.Text)
 	}
 }
 

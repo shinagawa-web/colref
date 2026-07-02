@@ -7,6 +7,7 @@ import (
 	"io"
 	"os"
 	"path/filepath"
+	"regexp"
 	"strings"
 	"testing"
 
@@ -776,6 +777,42 @@ func TestCheckCmd_RunE_WithArg(t *testing.T) {
 	}
 }
 
+func TestCheckCmd_RunE_InvalidFormat(t *testing.T) {
+	dir := setupDjangoFixture(t)
+	t.Cleanup(func() { flagFormat = "text" })
+
+	rootCmd.SetOut(io.Discard)
+	rootCmd.SetErr(io.Discard)
+	rootCmd.SetArgs([]string{
+		"check", dir,
+		"--model", "User",
+		"--field", "email",
+		"--orm", "django",
+		"--format", "xml",
+	})
+	if err := rootCmd.Execute(); err == nil {
+		t.Fatal("expected error for invalid --format")
+	}
+}
+
+func TestCheckCmd_RunE_InvalidColor(t *testing.T) {
+	dir := setupDjangoFixture(t)
+	t.Cleanup(func() { flagColor = "auto" })
+
+	rootCmd.SetOut(io.Discard)
+	rootCmd.SetErr(io.Discard)
+	rootCmd.SetArgs([]string{
+		"check", dir,
+		"--model", "User",
+		"--field", "email",
+		"--orm", "django",
+		"--color", "rainbow",
+	})
+	if err := rootCmd.Execute(); err == nil {
+		t.Fatal("expected error for invalid --color")
+	}
+}
+
 func TestCheckCmd_RunE_NoArg(t *testing.T) {
 	dir := setupDjangoFixture(t)
 
@@ -919,4 +956,73 @@ func TestCheckCmd_JSONOutput(t *testing.T) {
 	if result.ReferenceCount == 0 {
 		t.Error("expected at least one reference for User.email")
 	}
+}
+
+// captureStdout runs fn with os.Stdout redirected to a pipe and returns what
+// it wrote.
+func captureStdout(t *testing.T, fn func()) string {
+	t.Helper()
+	orig := os.Stdout
+	r, w, err := os.Pipe()
+	if err != nil {
+		t.Fatal(err)
+	}
+	os.Stdout = w
+	// Restore via defer so a t.Fatal (runtime.Goexit) or panic inside fn can't
+	// leave os.Stdout redirected for the rest of the suite.
+	defer func() { os.Stdout = orig }()
+	fn()
+	_ = w.Close()
+	out, err := io.ReadAll(r)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return string(out)
+}
+
+var ansiPattern = regexp.MustCompile("\033\\[[0-9]*m")
+
+func stripANSI(s string) string { return ansiPattern.ReplaceAllString(s, "") }
+
+func TestRunScan_ColorAlways(t *testing.T) {
+	orig := flagColor
+	flagColor = "always"
+	t.Cleanup(func() { flagColor = orig })
+
+	t.Run("RefsFound", func(t *testing.T) {
+		dir := setupDjangoFixture(t)
+		out := captureStdout(t, func() {
+			if err := runCheck(dir, "User", "email", "django"); err != nil {
+				t.Fatalf("unexpected error: %v", err)
+			}
+		})
+		// Green heading, cyan path, gray line number must be present.
+		if !strings.Contains(out, ansiGreen+"References found for User.email"+ansiReset) {
+			t.Errorf("heading not green-wrapped:\n%s", out)
+		}
+		if !strings.Contains(out, ansiCyan) || !strings.Contains(out, ansiGray) {
+			t.Errorf("path/line not colored:\n%s", out)
+		}
+		// Stripping color must reproduce the plain layout, alignment intact.
+		plain := stripANSI(out)
+		if !strings.Contains(plain, "References found for User.email") ||
+			!strings.Contains(plain, "accounts/views.py:") {
+			t.Errorf("color-stripped output lost content:\n%s", plain)
+		}
+	})
+
+	t.Run("NoRefs", func(t *testing.T) {
+		dir := setupDjangoFixture(t)
+		out := captureStdout(t, func() {
+			if err := runCheck(dir, "User", "name", "django"); err != nil {
+				t.Fatalf("unexpected error: %v", err)
+			}
+		})
+		if !strings.Contains(out, ansiYellow+"No references found for User.name"+ansiReset) {
+			t.Errorf("no-refs heading not yellow-wrapped:\n%s", out)
+		}
+		if !strings.Contains(out, ansiGray+"Verify manually before deleting."+ansiReset) {
+			t.Errorf("verify hint not dimmed:\n%s", out)
+		}
+	})
 }
