@@ -777,6 +777,42 @@ func TestCheckCmd_RunE_WithArg(t *testing.T) {
 	}
 }
 
+func TestCheckCmd_RunE_InvalidFormat(t *testing.T) {
+	dir := setupDjangoFixture(t)
+	t.Cleanup(func() { flagFormat = "text" })
+
+	rootCmd.SetOut(io.Discard)
+	rootCmd.SetErr(io.Discard)
+	rootCmd.SetArgs([]string{
+		"check", dir,
+		"--model", "User",
+		"--field", "email",
+		"--orm", "django",
+		"--format", "xml",
+	})
+	if err := rootCmd.Execute(); err == nil {
+		t.Fatal("expected error for invalid --format")
+	}
+}
+
+func TestCheckCmd_RunE_InvalidColor(t *testing.T) {
+	dir := setupDjangoFixture(t)
+	t.Cleanup(func() { flagColor = "auto" })
+
+	rootCmd.SetOut(io.Discard)
+	rootCmd.SetErr(io.Discard)
+	rootCmd.SetArgs([]string{
+		"check", dir,
+		"--model", "User",
+		"--field", "email",
+		"--orm", "django",
+		"--color", "rainbow",
+	})
+	if err := rootCmd.Execute(); err == nil {
+		t.Fatal("expected error for invalid --color")
+	}
+}
+
 func TestCheckCmd_RunE_NoArg(t *testing.T) {
 	dir := setupDjangoFixture(t)
 
